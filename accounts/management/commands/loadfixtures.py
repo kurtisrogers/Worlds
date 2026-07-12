@@ -16,12 +16,14 @@ from accounts.fixture_data import (
     REACTIONS,
     READERS,
     SAVED_STORIES,
+    STAFF,
     STORIES,
     SUBSCRIPTIONS,
     TRANSACTIONS,
     UNLOCKS,
 )
-from accounts.models import AuthorProfile
+from accounts.models import AuthorProfile, UserAccount
+from accounts.roles import sync_django_staff_flags
 from engagement.models import ChapterComment, ChapterReaction
 from library.models import AuthorFollow, SavedStory
 from payments.models import Transaction, TransactionStatus, TransactionType
@@ -139,6 +141,7 @@ class Command(BaseCommand):
         usernames = (
             [a["username"] for a in AUTHORS]
             + [r["username"] for r in READERS]
+            + [s["username"] for s in STAFF]
             + list(LEGACY_USER_MAP.keys())
         )
         deleted, _ = User.objects.filter(username__in=usernames).delete()
@@ -176,6 +179,21 @@ class Command(BaseCommand):
                 user.set_password(DEMO_PASSWORD)
                 user.save()
             users[reader_data["username"]] = user
+
+        for staff_data in STAFF:
+            user, created = User.objects.get_or_create(
+                username=staff_data["username"],
+                defaults={"email": staff_data["email"]},
+            )
+            if created:
+                user.set_password(DEMO_PASSWORD)
+                user.save()
+
+            account, _ = UserAccount.objects.get_or_create(user=user)
+            account.platform_role = staff_data["platform_role"]
+            account.save(update_fields=["platform_role", "updated_at"])
+            sync_django_staff_flags(user)
+            users[staff_data["username"]] = user
 
         # Legacy aliases for docs / backwards compatibility
         for legacy, canonical in LEGACY_USER_MAP.items():

@@ -9,6 +9,7 @@ import stripe
 from django.conf import settings
 from django.urls import reverse
 
+from payments.billing import save_customer_from_checkout
 from payments.connect import connect_payment_params, connect_subscription_params
 from payments.models import Transaction, TransactionStatus, TransactionType
 from stories.models import Chapter, ReaderSubscription, Story, SubscriptionTier
@@ -152,13 +153,18 @@ def handle_checkout_completed(session: dict[str, Any]) -> None:
         stripe_payment_intent_id=session.get("payment_intent", ""),
     )
 
-    if session_type == "chapter_unlock":
-        from django.contrib.auth import get_user_model
+    from django.contrib.auth import get_user_model
 
-        User = get_user_model()
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=user_id)
+        save_customer_from_checkout(user, session.get("customer"))
+    except User.DoesNotExist:
+        pass
+
+    if session_type == "chapter_unlock":
         chapter_id = metadata.get("chapter_id")
         try:
-            user = User.objects.get(pk=user_id)
             chapter = Chapter.objects.get(pk=chapter_id)
             from stories.models import ChapterUnlock
 
@@ -171,12 +177,8 @@ def handle_checkout_completed(session: dict[str, Any]) -> None:
             logger.exception("Failed to process chapter unlock")
 
     elif session_type == "subscription":
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
         tier_id = metadata.get("tier_id")
         try:
-            user = User.objects.get(pk=user_id)
             tier = SubscriptionTier.objects.get(pk=tier_id)
             ReaderSubscription.objects.update_or_create(
                 reader=user,

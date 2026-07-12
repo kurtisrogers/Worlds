@@ -1,0 +1,13 @@
+<nav class="flex gap-4 border-b border-stone-300 dark:border-stone-700 mb-8 overflow-x-auto text-sm">
+  <a href="{% url 'staff:dashboard' %}" class="pb-3 whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if staff_section == 'dashboard' %}border-b-2 border-worlds-600 text-worlds-700 dark:text-worlds-300 font-semibold{% endif %}">
+    Dashboard
+  </a>
+  <a href="{% url 'staff:users' %}" class="pb-3 whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if staff_section == 'users' %}border-b-2 border-worlds-600 text-worlds-700 dark:text-worlds-300 font-semibold{% endif %}">
+    Users
+  </a>
+  {% if can_moderate %}
+    <a href="{% url 'staff:comments' %}" class="pb-3 whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if staff_section == 'comments' %}border-b-2 border-worlds-600 text-worlds-700 dark:text-worlds-300 font-semibold{% endif %}">
+      Comments
+    </a>
+  {% endif %}
+</nav>

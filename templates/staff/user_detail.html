@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load money %}
+
+{% block title %}Staff — {{ profile_user.username }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+  <a href="{% url 'staff:users' %}" class="text-sm text-stone-500 hover:text-worlds-600 transition mb-4 inline-block">&larr; All users</a>
+  <h1 class="font-serif text-3xl font-semibold mb-2">{{ profile_user.username }}</h1>
+  <p class="text-sm text-stone-500 mb-6">{{ profile_user.email }}</p>
+
+  {% include "staff/_nav.html" with staff_section="users" %}
+
+  <div class="grid lg:grid-cols-2 gap-6 mb-8">
+    <div class="card p-6">
+      <h2 class="font-serif text-lg font-semibold mb-4">Account</h2>
+      <dl class="text-sm space-y-2">
+        <div class="flex justify-between">
+          <dt class="text-stone-500">Role</dt>
+          <dd class="font-medium">
+            {% if profile_user.account %}{{ profile_user.account.get_platform_role_display }}{% else %}Reader{% endif %}
+          </dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-stone-500">Joined</dt>
+          <dd>{{ profile_user.date_joined|date:"M j, Y" }}</dd>
+        </div>
+        {% if profile_user.author_profile %}
+          <div class="flex justify-between">
+            <dt class="text-stone-500">Display name</dt>
+            <dd>{{ profile_user.author_profile.name }}</dd>
+          </div>
+        {% endif %}
+      </dl>
+
+      {% if is_super_admin %}
+        <form method="post" action="{% url 'staff:set_role' username=profile_user.username %}" class="mt-6 pt-6 border-t border-stone-200 dark:border-stone-700">
+          {% csrf_token %}
+          <label class="block text-xs font-semibold uppercase tracking-widest text-stone-500 mb-2">Change role</label>
+          <div class="flex gap-2">
+            <select name="platform_role" class="flex-1 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 px-3 py-2 text-sm">
+              <option value="reader" {% if not profile_user.account or profile_user.account.platform_role == 'reader' %}selected{% endif %}>Reader</option>
+              <option value="support" {% if profile_user.account.platform_role == 'support' %}selected{% endif %}>Support</option>
+              <option value="moderator" {% if profile_user.account.platform_role == 'moderator' %}selected{% endif %}>Moderator</option>
+              <option value="super_admin" {% if profile_user.account.platform_role == 'super_admin' %}selected{% endif %}>Super Admin</option>
+            </select>
+            <button type="submit" class="btn-primary text-sm">Save</button>
+          </div>
+        </form>
+      {% endif %}
+    </div>
+
+    <div class="card p-6">
+      <h2 class="font-serif text-lg font-semibold mb-4">Stories ({{ stories|length }})</h2>
+      {% if stories %}
+        <ul class="text-sm space-y-2">
+          {% for story in stories %}
+            <li>
+              <a href="{% url 'stories:manage' slug=story.slug %}" class="hover:text-worlds-600 transition">{{ story.title }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-stone-500">No stories.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card p-6 mb-6">
+    <h2 class="font-serif text-lg font-semibold mb-4">Subscriptions</h2>
+    {% if subscriptions %}
+      <div class="space-y-2 text-sm">
+        {% for sub in subscriptions %}
+          <div class="flex justify-between">
+            <span>{{ sub.story.title }} ({{ sub.tier.get_name_display }})</span>
+            <span class="text-stone-500 capitalize">{{ sub.get_status_display }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-sm text-stone-500">No subscriptions.</p>
+    {% endif %}
+  </div>
+
+  <div class="card p-6">
+    <h2 class="font-serif text-lg font-semibold mb-4">Recent transactions</h2>
+    {% if transactions %}
+      <div class="space-y-2 text-sm">
+        {% for tx in transactions %}
+          <div class="flex justify-between">
+            <span class="capitalize">{{ tx.get_transaction_type_display }}</span>
+            <span>{{ tx.amount_cents|cents_to_dollars }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-sm text-stone-500">No transactions.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

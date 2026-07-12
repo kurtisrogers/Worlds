@@ -24,16 +24,6 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 @login_required
-def transaction_history(request):
-    transactions = Transaction.objects.filter(user=request.user)[:50]
-    return render(
-        request,
-        "payments/history.html",
-        {"transactions": transactions},
-    )
-
-
-@login_required
 def connect_dashboard(request):
     profile, _ = AuthorProfile.objects.get_or_create(
         user=request.user,

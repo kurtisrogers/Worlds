@@ -27,6 +27,18 @@ class TestLoadFixtures:
         assert User.objects.filter(username="demo_author").exists()
         assert User.objects.filter(username="demo_reader").exists()
 
+    def test_loadfixtures_creates_staff_users(self):
+        from accounts.models import PlatformRole, UserAccount
+        from django.contrib.auth.models import User
+
+        call_command("loadfixtures", flush=True, no_covers=True)
+        assert User.objects.filter(username="worlds_support").exists()
+        support = UserAccount.objects.get(user__username="worlds_support")
+        assert support.platform_role == PlatformRole.SUPPORT
+        admin = User.objects.get(username="worlds_superadmin")
+        assert admin.is_staff
+        assert admin.is_superuser
+
     def test_loaddemo_alias(self):
         call_command("loaddemo", flush=True)
         assert Story.objects.filter(title="The Starlight Chronicle").exists()

@@ -64,6 +64,24 @@ READERS = [
     },
 ]
 
+STAFF = [
+    {
+        "username": "worlds_support",
+        "email": "support@worlds.example",
+        "platform_role": "support",
+    },
+    {
+        "username": "worlds_moderator",
+        "email": "mod@worlds.example",
+        "platform_role": "moderator",
+    },
+    {
+        "username": "worlds_superadmin",
+        "email": "admin@worlds.example",
+        "platform_role": "super_admin",
+    },
+]
+
 # Backwards-compatible aliases used in docs
 LEGACY_USER_MAP = {
     "demo_author": "elena_rivers",

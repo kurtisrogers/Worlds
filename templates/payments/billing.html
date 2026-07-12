@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load money %}
+
+{% block title %}Billing{% endblock %}
+
+{% block extra_head %}
+<style>
+  .billing-tab.active {
+    border-bottom: 2px solid #c66d3a;
+    color: #a55531;
+    font-weight: 600;
+  }
+  .dark .billing-tab.active { color: #dda06a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="font-serif text-3xl font-semibold">Billing</h1>
+      <p class="text-sm text-stone-500 mt-1">Subscriptions, purchases, and author earnings in one place</p>
+    </div>
+    {% if summary.has_stripe_customer or summary.active_subscriptions %}
+      <a href="{% url 'payments:billing_portal' %}" class="btn-secondary text-sm self-start">Manage payment methods</a>
+    {% endif %}
+  </div>
+
+  <nav class="flex gap-6 border-b border-stone-300 dark:border-stone-700 mb-8 overflow-x-auto">
+    <a href="?tab=overview" class="billing-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'overview' %}active{% endif %}">
+      Overview
+    </a>
+    <a href="?tab=subscriptions" class="billing-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'subscriptions' %}active{% endif %}">
+      Subscriptions
+    </a>
+    <a href="?tab=purchases" class="billing-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'purchases' %}active{% endif %}">
+      Purchases
+    </a>
+    {% if has_author_stories %}
+      <a href="?tab=earnings" class="billing-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'earnings' %}active{% endif %}">
+        Earnings
+      </a>
+    {% endif %}
+  </nav>
+
+  {% if tab == 'overview' %}
+    <div class="grid sm:grid-cols-3 gap-4 mb-8">
+      <div class="card p-5">
+        <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Active subscriptions</p>
+        <p class="font-serif text-2xl font-semibold">{{ summary.active_subscriptions }}</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Total spent</p>
+        <p class="font-serif text-2xl font-semibold">{{ summary.total_spent_cents|cents_to_dollars }}</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Chapter unlocks</p>
+        <p class="font-serif text-2xl font-semibold">{{ summary.chapter_unlocks }}</p>
+      </div>
+    </div>
+
+    {% if has_author_stories %}
+      <div class="card p-6 mb-6">
+        <h2 class="font-serif text-lg font-semibold mb-2">Author payouts</h2>
+        <p class="text-sm text-stone-500 mb-4">
+          Reader payments for your stories are sent via Stripe Connect.
+        </p>
+        <a href="{% url 'payments:connect_dashboard' %}" class="btn-secondary text-sm">Manage payout account</a>
+      </div>
+    {% endif %}
+
+    <p class="text-sm text-stone-500">
+      Use the tabs above to view subscriptions and purchase history.
+      {% if not summary.has_stripe_customer %}
+        Payment methods are saved automatically when you subscribe or unlock a chapter.
+      {% endif %}
+    </p>
+
+  {% elif tab == 'subscriptions' %}
+    {% if subscriptions %}
+      <div class="space-y-3">
+        {% for sub in subscriptions %}
+          <div class="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p class="font-medium">
+                <a href="{% url 'stories:detail' slug=sub.story.slug %}" class="hover:text-worlds-600 transition">{{ sub.story.title }}</a>
+              </p>
+              <p class="text-sm text-stone-500">{{ sub.tier.get_name_display }} · {{ sub.tier.price_cents|cents_to_dollars }}/mo</p>
+            </div>
+            <span class="text-xs font-medium uppercase tracking-wide px-2 py-1 rounded-full {% if sub.status == 'active' %}bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200{% else %}bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400{% endif %}">
+              {{ sub.get_status_display }}
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-stone-500">No subscriptions yet. <a href="{% url 'stories:discover' %}" class="text-worlds-600 hover:underline">Discover stories</a> to support authors.</p>
+    {% endif %}
+
+  {% elif tab == 'purchases' %}
+    {% if transactions or unlocks %}
+      {% if transactions %}
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-3">Transactions</h2>
+        <div class="space-y-3 mb-8">
+          {% for tx in transactions %}
+            <div class="card p-4 flex justify-between items-center">
+              <div>
+                <p class="font-medium capitalize">{{ tx.get_transaction_type_display }}</p>
+                <p class="text-xs text-stone-500">{{ tx.created_at|date:"M j, Y g:i A" }}</p>
+              </div>
+              <div class="text-right">
+                <p class="font-serif text-lg">{{ tx.amount_cents|cents_to_dollars }}</p>
+                <p class="text-xs text-stone-500 capitalize">{{ tx.get_status_display }}</p>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if unlocks %}
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-3">Chapter unlocks</h2>
+        <div class="space-y-3">
+          {% for unlock in unlocks %}
+            <div class="card p-4 flex justify-between items-center">
+              <div>
+                <p class="font-medium">{{ unlock.chapter.story.title }}</p>
+                <p class="text-sm text-stone-500">Ch. {{ unlock.chapter.number }}: {{ unlock.chapter.title }}</p>
+              </div>
+              <p class="font-serif text-lg">{{ unlock.amount_cents|cents_to_dollars }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% else %}
+      <p class="text-stone-500">No purchases yet.</p>
+    {% endif %}
+
+  {% elif tab == 'earnings' %}
+    <div class="card p-6 mb-6">
+      <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Chapter unlock revenue</p>
+      <p class="font-serif text-3xl font-semibold mb-4">{{ author_unlock_revenue_cents|cents_to_dollars }}</p>
+      <p class="text-sm text-stone-500 mb-4">
+        Subscription revenue is paid out automatically via Stripe Connect after the {{ PLATFORM_FEE_PERCENT }}% platform fee.
+      </p>
+      <a href="{% url 'payments:connect_dashboard' %}" class="btn-primary text-sm">
+        {% if author_profile and author_profile.stripe_connect_onboarded %}Manage payouts{% else %}Set up payouts{% endif %}
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
