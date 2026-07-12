@@ -14,7 +14,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 python manage.py migrate
-python manage.py loaddata demo  # optional demo data
+python manage.py loadfixtures   # comprehensive demo data (--flush to reset)
 python manage.py runserver
 ```
 
@@ -39,9 +39,11 @@ Visit [http://localhost:8000](http://localhost:8000).
 ```
 accounts/       User profiles and authentication
 stories/        Books, chapters, reading experience
-payments/       Stripe integration, 2% platform fee
-integrations/   Google Sheets sync, document upload
-editor/         In-app chapter editor with autosave
+payments/       Stripe integration, Connect payouts, 2% fee
+integrations/   Google OAuth, Sheets sync, document upload
+editor/         TipTap rich-text editor with autosave
+library/        Saved books, follows, Kindle-style library
+engagement/     Chapter comments and reactions
 features/       BDD tests (behave)
 tests/          Functional tests (pytest)
 landing/        GitHub Pages static site

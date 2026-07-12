@@ -35,6 +35,7 @@ nav:
     - Supporting Authors: readers/supporting.md
   - Development:
     - Testing: development/testing.md
+    - Fixture Data: development/fixtures.md
     - Stripe Integration: development/stripe.md
     - Stripe Connect: development/stripe-connect.md
 

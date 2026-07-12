@@ -21,13 +21,27 @@ python manage.py runserver
 
 ## Demo data
 
-Load sample stories and chapters:
+Load a full demo dataset with authors, stories, library data, comments, and reactions:
 
 ```bash
-python manage.py loaddata demo
+python manage.py loadfixtures
+python manage.py loadfixtures --flush   # reset and reload
+python manage.py loadfixtures --no-covers  # skip cover image generation
 ```
+
+`loaddemo` is an alias for `loadfixtures`.
 
 Demo accounts (password: `demo1234`):
 
-- `demo_author` — sample author with a published story
-- `demo_reader` — sample reader account
+**Authors**
+- `elena_rivers` — fantasy (Stripe Connect active)
+- `marcus_chen` — sci-fi (Stripe Connect active)
+- `amara_okafor` — literary fiction
+- `james_wolf` — thriller (Stripe Connect active)
+
+**Readers**
+- `alex_reader` — subscriptions, saved books, comments
+- `sam_reader` — follows literary authors
+- `jordan_reader` — sci-fi/thriller fan
+
+**Legacy aliases:** `demo_author` → `elena_rivers`, `demo_reader` → `alex_reader`
