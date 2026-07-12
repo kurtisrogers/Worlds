@@ -28,6 +28,7 @@ nav:
     - Subscriptions: authors/subscriptions.md
   - Readers:
     - Discovering Stories: readers/discovering.md
+    - Your Library: readers/library.md
     - Supporting Authors: readers/supporting.md
   - Development:
     - Testing: development/testing.md

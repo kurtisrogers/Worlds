@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load money %}
+
+{% block title %}{% if author.author_profile %}{{ author.author_profile.name }}{% else %}{{ author.username }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+  <header class="flex flex-col md:flex-row md:items-start gap-8 mb-12">
+    <div class="w-24 h-24 rounded-full bg-worlds-200 dark:bg-stone-700 flex items-center justify-center flex-shrink-0">
+      <span class="font-serif text-3xl font-semibold text-worlds-700 dark:text-worlds-300">{{ author.username|first|upper }}</span>
+    </div>
+    <div class="flex-1">
+      <h1 class="font-serif text-3xl font-semibold">
+        {% if author.author_profile %}{{ author.author_profile.name }}{% else %}{{ author.username }}{% endif %}
+      </h1>
+      <p class="text-sm text-stone-500 mt-1">{{ follower_count }} follower{{ follower_count|pluralize }} · {{ stories.count }} book{{ stories.count|pluralize }}</p>
+      {% if author.author_profile.bio %}
+        <p class="text-stone-600 dark:text-stone-400 mt-4 max-w-xl">{{ author.author_profile.bio }}</p>
+      {% endif %}
+      {% if user.is_authenticated and user != author %}
+        <div class="mt-4" id="follow-button">
+          {% include "library/partials/follow_button.html" with author=author is_following=is_following %}
+        </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-6">Books</h2>
+    {% if stories %}
+      <div class="book-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+        {% for story in stories %}
+          {% include "library/partials/book_tile.html" with story=story meta=story_meta|get_item:story.id %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-stone-500">No published books yet.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

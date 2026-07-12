@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "payments",
     "integrations",
     "editor",
+    "library",
 ]
 
 MIDDLEWARE = [

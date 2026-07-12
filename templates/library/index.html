@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load money %}
+
+{% block title %}Your Library{% endblock %}
+
+{% block extra_head %}
+<style>
+  .library-tab.active {
+    border-bottom: 2px solid #c66d3a;
+    color: #a55531;
+    font-weight: 600;
+  }
+  .dark .library-tab.active { color: #dda06a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="library-page min-h-screen bg-stone-100 dark:bg-stone-950">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <header class="mb-8">
+      <h1 class="font-serif text-2xl md:text-3xl font-semibold text-stone-900 dark:text-stone-50">Your Library</h1>
+      <p class="text-sm text-stone-500 dark:text-stone-400 mt-1">Your saved books, subscriptions, and followed authors</p>
+    </header>
+
+    <nav class="flex gap-6 border-b border-stone-300 dark:border-stone-700 mb-8 overflow-x-auto">
+      <a href="?tab=all" class="library-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'all' %}active{% endif %}">
+        All
+      </a>
+      <a href="?tab=saved" class="library-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'saved' %}active{% endif %}">
+        Saved ({{ saved_count }})
+      </a>
+      <a href="?tab=subscriptions" class="library-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'subscriptions' %}active{% endif %}">
+        Subscriptions ({{ subscription_count }})
+      </a>
+      <a href="?tab=following" class="library-tab pb-3 text-sm whitespace-nowrap text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition {% if tab == 'following' %}active{% endif %}">
+        Authors ({{ following_count }})
+      </a>
+    </nav>
+
+    {% if tab == 'following' and followed_authors %}
+      <section class="mb-10">
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-4">Followed authors</h2>
+        <div class="flex flex-wrap gap-3">
+          {% for author_user in followed_authors %}
+            <a href="{% url 'library:author' username=author_user.username %}"
+               class="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 hover:border-worlds-400 transition text-sm">
+              <span class="w-8 h-8 rounded-full bg-worlds-200 dark:bg-stone-700 flex items-center justify-center font-medium text-worlds-700 dark:text-worlds-300">
+                {{ author_user.username|first|upper }}
+              </span>
+              {% if author_user.author_profile %}{{ author_user.author_profile.name }}{% else %}{{ author_user.username }}{% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    {% if stories %}
+      <div class="book-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+        {% for story in stories %}
+          {% include "library/partials/book_tile.html" with story=story meta=story_meta|get_item:story.id %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center py-20">
+        <div class="text-5xl mb-4 opacity-40">📚</div>
+        <h2 class="font-serif text-xl font-semibold mb-2">Your library is empty</h2>
+        <p class="text-stone-500 dark:text-stone-400 text-sm mb-6 max-w-sm mx-auto">
+          {% if tab == 'saved' %}
+            Save books you want to read later from any story page.
+          {% elif tab == 'subscriptions' %}
+            Subscribe to a story to support its author and unlock tier chapters.
+          {% elif tab == 'following' %}
+            Follow authors to see their latest releases here.
+          {% else %}
+            Save books, subscribe to stories, or follow authors to build your library.
+          {% endif %}
+        </p>
+        <a href="{% url 'stories:discover' %}" class="btn-primary">Discover stories</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

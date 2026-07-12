@@ -1,0 +1,24 @@
+{% load static %}
+<a href="{% url 'stories:detail' slug=story.slug %}" class="book-tile group block">
+  <div class="book-cover relative aspect-[2/3] rounded-md overflow-hidden shadow-md group-hover:shadow-xl transition-shadow duration-300 bg-stone-200 dark:bg-stone-800">
+    {% if story.cover_image %}
+      <img src="{{ story.cover_image.url }}" alt="{{ story.title }}"
+           class="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300">
+    {% else %}
+      <div class="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-worlds-200 via-worlds-300 to-worlds-400 dark:from-stone-700 dark:via-stone-600 dark:to-stone-800">
+        <span class="font-serif text-4xl font-semibold text-worlds-700 dark:text-worlds-300 opacity-80">{{ story.title|first }}</span>
+      </div>
+    {% endif %}
+    {% if meta.is_subscribed %}
+      <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-worlds-600 text-white rounded-full">Subscribed</span>
+    {% elif meta.is_saved %}
+      <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-stone-800/70 text-white rounded-full">Saved</span>
+    {% endif %}
+  </div>
+  <div class="mt-2.5 px-0.5">
+    <h3 class="text-sm font-medium leading-snug line-clamp-2 group-hover:text-worlds-600 dark:group-hover:text-worlds-400 transition">{{ story.title }}</h3>
+    <p class="text-xs text-stone-500 dark:text-stone-400 mt-0.5 truncate">
+      {% if story.author.author_profile %}{{ story.author.author_profile.name }}{% else %}{{ story.author.username }}{% endif %}
+    </p>
+  </div>
+</a>

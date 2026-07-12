@@ -5,7 +5,7 @@ target-version = ["py312"]
 [tool.isort]
 profile = "black"
 line_length = 88
-known_first_party = ["accounts", "config", "editor", "integrations", "payments", "stories"]
+known_first_party = ["accounts", "config", "editor", "integrations", "library", "payments", "stories"]
 
 [tool.ruff]
 line-length = 88

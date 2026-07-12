@@ -1,0 +1,10 @@
+<button type="button"
+        hx-post="{% url 'library:toggle_follow' username=author.username %}"
+        hx-swap="outerHTML"
+        class="{% if is_following %}btn-secondary{% else %}btn-primary{% endif %} text-sm inline-flex items-center gap-2">
+  {% if is_following %}
+    <span>✓</span> Following
+  {% else %}
+    <span>+</span> Follow author
+  {% endif %}
+</button>

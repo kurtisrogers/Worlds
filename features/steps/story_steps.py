@@ -148,3 +148,36 @@ def step_silver_tier_chapter(context, title, number):
         tier_required=TierName.SILVER,
     )
     context.story = story
+
+
+@when('I save "{title}" to my library')
+def step_save_to_library(context, title):
+    from library.models import SavedStory
+
+    story = Story.objects.get(title=title)
+    user = User.objects.get(username=context.username)
+    SavedStory.objects.get_or_create(user=user, story=story)
+
+
+@then('I should see "{title}" in my saved library')
+def step_see_in_saved_library(context, title):
+    response = get_client(context).get(reverse("library:index"), {"tab": "saved"})
+    assert title.encode() in response.content
+
+
+@when('I follow the author of "{title}"')
+def step_follow_author_of_story(context, title):
+    from library.models import AuthorFollow
+
+    story = Story.objects.get(title=title)
+    user = User.objects.get(username=context.username)
+    AuthorFollow.objects.get_or_create(follower=user, author=story.author)
+    context.followed_author = story.author
+
+
+@then("I should be following that author")
+def step_following_author(context):
+    response = get_client(context).get(
+        reverse("library:author", kwargs={"username": context.followed_author.username})
+    )
+    assert b"Following" in response.content

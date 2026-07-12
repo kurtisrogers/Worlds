@@ -3,10 +3,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from payments.services import create_chapter_checkout_session, create_subscription_checkout_session
+from library.services import get_user_subscription, is_following_author, is_story_saved
 from stories.access import can_read_chapter, get_access_reason
 from stories.forms import ChapterForm, StoryForm
 from stories.models import Chapter, Story, StoryStatus
@@ -15,8 +14,8 @@ from stories.models import Chapter, Story, StoryStatus
 def home(request):
     stories = Story.objects.filter(
         status__in=[StoryStatus.PUBLISHING, StoryStatus.PUBLISHED]
-    ).select_related("author").prefetch_related("chapters")[:12]
-    return render(request, "stories/home.html", {"stories": stories})
+    ).select_related("author", "author__author_profile").prefetch_related("chapters")[:12]
+    return render(request, "stories/home.html", {"stories": stories, "empty_dict": {}})
 
 
 def story_detail(request, slug):
@@ -37,6 +36,8 @@ def story_detail(request, slug):
         }
         for ch in chapters
     }
+
+    user_subscription = get_user_subscription(request.user, story)
     return render(
         request,
         "stories/detail.html",
@@ -44,6 +45,9 @@ def story_detail(request, slug):
             "story": story,
             "chapters": chapters,
             "chapter_access": chapter_access,
+            "is_saved": is_story_saved(request.user, story),
+            "is_following_author": is_following_author(request.user, story.author),
+            "user_subscription": user_subscription,
         },
     )
 
@@ -107,6 +111,14 @@ def story_manage(request, slug):
     story = get_object_or_404(Story, slug=slug, author=request.user)
     chapters = story.chapters.all()
     tiers = story.subscription_tiers.all()
+
+    if request.method == "POST" and request.POST.get("action") == "upload_cover":
+        if request.FILES.get("cover_image"):
+            story.cover_image = request.FILES["cover_image"]
+            story.save(update_fields=["cover_image", "updated_at"])
+            messages.success(request, "Cover art updated.")
+        return redirect("stories:manage", slug=story.slug)
+
     return render(
         request,
         "stories/manage.html",
@@ -213,9 +225,9 @@ def discover(request):
     query = request.GET.get("q", "")
     stories = Story.objects.filter(
         status__in=[StoryStatus.PUBLISHING, StoryStatus.PUBLISHED]
-    )
+    ).select_related("author", "author__author_profile")
     if query:
         stories = stories.filter(
             Q(title__icontains=query) | Q(synopsis__icontains=query)
         )
-    return render(request, "stories/discover.html", {"stories": stories, "query": query})
+    return render(request, "stories/discover.html", {"stories": stories, "query": query, "empty_dict": {}})

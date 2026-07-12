@@ -51,6 +51,7 @@
       <div class="hidden md:flex items-center gap-6 text-sm font-medium">
         <a href="{% url 'stories:discover' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Discover</a>
         {% if user.is_authenticated %}
+          <a href="{% url 'library:index' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Library</a>
           <a href="{% url 'stories:dashboard' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">My Stories</a>
           <a href="{% url 'payments:history' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Payments</a>
         {% endif %}
@@ -103,6 +104,7 @@
           <div>
             <p class="font-medium text-stone-700 dark:text-stone-300 mb-2">Readers</p>
             <a href="{% url 'stories:discover' %}" class="block hover:text-worlds-600 transition">Discover stories</a>
+            <a href="{% url 'library:index' %}" class="block hover:text-worlds-600 transition">Your library</a>
           </div>
           <div>
             <p class="font-medium text-stone-700 dark:text-stone-300 mb-2">Authors</p>

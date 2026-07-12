@@ -11,6 +11,7 @@ urlpatterns = [
     path("payments/", include("payments.urls")),
     path("integrations/", include("integrations.urls")),
     path("editor/", include("editor.urls")),
+    path("library/", include("library.urls")),
     path("", include("stories.urls")),
 ]
 

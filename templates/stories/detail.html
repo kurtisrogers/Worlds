@@ -4,27 +4,58 @@
 {% block title %}{{ story.title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 py-12">
-  <header class="mb-12">
-    {% if story.cover_image %}
-      <img src="{{ story.cover_image.url }}" alt="{{ story.title }}" class="w-full max-h-80 object-cover rounded-2xl mb-8">
-    {% endif %}
-    <p class="text-worlds-600 dark:text-worlds-400 text-sm font-medium mb-2">
-      by {% if story.author.author_profile %}{{ story.author.author_profile.name }}{% else %}{{ story.author.username }}{% endif %}
-    </p>
-    <h1 class="font-serif text-4xl md:text-5xl font-semibold mb-4">{{ story.title }}</h1>
-    <p class="text-lg text-stone-600 dark:text-stone-400 leading-relaxed">{{ story.synopsis }}</p>
-    {% if user == story.author %}
-      <div class="flex gap-3 mt-6">
-        <a href="{% url 'stories:manage' slug=story.slug %}" class="btn-primary">Manage story</a>
-        <a href="{% url 'integrations:manage' slug=story.slug %}" class="btn-secondary">Integrations</a>
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+  <header class="flex flex-col md:flex-row gap-8 md:gap-12 mb-12">
+    <div class="flex-shrink-0 mx-auto md:mx-0">
+      <div class="w-48 sm:w-56 aspect-[2/3] rounded-lg overflow-hidden shadow-xl bg-stone-200 dark:bg-stone-800">
+        {% if story.cover_image %}
+          <img src="{{ story.cover_image.url }}" alt="{{ story.title }}" class="w-full h-full object-cover">
+        {% else %}
+          <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-worlds-200 via-worlds-300 to-worlds-400 dark:from-stone-700 dark:to-stone-800">
+            <span class="font-serif text-5xl font-semibold text-worlds-700 dark:text-worlds-300 opacity-80">{{ story.title|first }}</span>
+          </div>
+        {% endif %}
       </div>
-    {% endif %}
+    </div>
+
+    <div class="flex-1 text-center md:text-left">
+      <a href="{% url 'library:author' username=story.author.username %}"
+         class="text-worlds-600 dark:text-worlds-400 text-sm font-medium hover:underline">
+        {% if story.author.author_profile %}{{ story.author.author_profile.name }}{% else %}{{ story.author.username }}{% endif %}
+      </a>
+      <h1 class="font-serif text-3xl md:text-4xl font-semibold mt-1 mb-4">{{ story.title }}</h1>
+      <p class="text-stone-600 dark:text-stone-400 leading-relaxed mb-6">{{ story.synopsis }}</p>
+
+      {% if user_subscription %}
+        <p class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-worlds-100 dark:bg-stone-800 text-sm text-worlds-700 dark:text-worlds-300 mb-4">
+          <span>✓</span> Subscribed — {{ user_subscription.tier.get_name_display }} tier
+        </p>
+      {% endif %}
+
+      <div class="flex flex-wrap gap-3 justify-center md:justify-start">
+        {% if user == story.author %}
+          <a href="{% url 'stories:manage' slug=story.slug %}" class="btn-primary">Manage story</a>
+          <a href="{% url 'integrations:manage' slug=story.slug %}" class="btn-secondary">Integrations</a>
+        {% elif user.is_authenticated %}
+          <div id="save-button">
+            {% include "library/partials/save_button.html" with story=story is_saved=is_saved %}
+          </div>
+          {% if user != story.author %}
+            <div id="follow-button">
+              {% include "library/partials/follow_button.html" with author=story.author is_following=is_following_author %}
+            </div>
+          {% endif %}
+        {% else %}
+          <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="btn-primary">Sign in to save</a>
+        {% endif %}
+      </div>
+    </div>
   </header>
 
   {% if story.subscription_tiers.exists %}
   <section class="mb-12" id="support">
-    <h2 class="font-serif text-xl font-semibold mb-4">Support this author</h2>
+    <h2 class="font-serif text-xl font-semibold mb-4">Subscribe to this book</h2>
+    <p class="text-sm text-stone-500 mb-4">Support the author directly with a monthly subscription to this story.</p>
     <div class="grid sm:grid-cols-3 gap-4">
       {% for tier in story.subscription_tiers.all %}
         <div class="card p-5 border-t-4 tier-{{ tier.name }}">
@@ -39,7 +70,11 @@
             </ul>
           {% endif %}
           {% if user.is_authenticated %}
-            <a href="{% url 'stories:subscribe_tier' slug=story.slug tier_name=tier.name %}" class="btn-primary w-full text-sm text-center block">Subscribe</a>
+            {% if user_subscription and user_subscription.tier_id == tier.id %}
+              <span class="btn-secondary w-full text-sm text-center block opacity-60 cursor-default">Current plan</span>
+            {% else %}
+              <a href="{% url 'stories:subscribe_tier' slug=story.slug tier_name=tier.name %}" class="btn-primary w-full text-sm text-center block">Subscribe</a>
+            {% endif %}
           {% else %}
             <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="btn-secondary w-full text-sm text-center block">Sign in to subscribe</a>
           {% endif %}
