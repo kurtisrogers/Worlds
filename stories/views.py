@@ -5,8 +5,11 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
+from engagement.views import chapter_engagement_context
 from library.services import get_user_subscription, is_following_author, is_story_saved
+from payments.services import create_chapter_checkout_session, create_subscription_checkout_session
 from stories.access import can_read_chapter, get_access_reason
+from stories.content import render_chapter_content
 from stories.forms import ChapterForm, StoryForm
 from stories.models import Chapter, Story, StoryStatus
 
@@ -78,6 +81,8 @@ def chapter_read(request, slug, number):
             "reason": reason,
             "prev_chapter": prev_chapter,
             "next_chapter": next_chapter,
+            "rendered_content": render_chapter_content(chapter) if has_access else "",
+            **chapter_engagement_context(request, chapter),
         },
     )
 

@@ -26,8 +26,10 @@ Visit [http://localhost:8000](http://localhost:8000).
 |-------|------------|
 | Backend | Django 5, Python 3.12 |
 | Frontend | HTMX, Alpine.js, Tailwind CSS |
-| Payments | Stripe Checkout & webhooks |
-| Integrations | Google Sheets API, DOCX upload |
+| Payments | Stripe Checkout, Connect payouts & webhooks |
+| Editor | TipTap rich-text with HTML rendering |
+| Integrations | Google OAuth, Sheets API, DOCX upload |
+| Engagement | Chapter comments & reactions (HTMX) |
 | Testing | pytest, behave (BDD) |
 | Docs | MkDocs Material |
 | Quality | pre-commit (black, ruff, isort) |

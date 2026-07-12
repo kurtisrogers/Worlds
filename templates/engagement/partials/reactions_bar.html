@@ -1,0 +1,26 @@
+{% load money %}
+<div class="flex flex-wrap items-center gap-2">
+  <span class="text-sm text-stone-500 mr-2">React:</span>
+  {% if user.is_authenticated %}
+    {% for value, label in reaction_types %}
+      {% with count=reaction_counts|get_item:value %}
+      <button type="button"
+              hx-post="{% url 'engagement:toggle_reaction' slug=story.slug number=chapter.number %}"
+              hx-vals='{"reaction_type": "{{ value }}"}'
+              hx-target="#reactions-bar" hx-swap="innerHTML"
+              class="px-3 py-1.5 rounded-full text-sm border transition
+                     {% if user_reaction == value %}border-worlds-500 bg-worlds-100 dark:bg-stone-800{% else %}border-stone-200 dark:border-stone-700 hover:border-worlds-300{% endif %}">
+        {{ label }}{% if count %} <span class="text-xs text-stone-500">{{ count }}</span>{% endif %}
+      </button>
+      {% endwith %}
+    {% endfor %}
+  {% else %}
+    {% for value, label in reaction_types %}
+      {% with count=reaction_counts|get_item:value %}
+      <span class="px-3 py-1.5 rounded-full text-sm border border-stone-200 dark:border-stone-700 text-stone-500">
+        {{ label }}{% if count %} <span class="text-xs">{{ count }}</span>{% endif %}
+      </span>
+      {% endwith %}
+    {% endfor %}
+  {% endif %}
+</div>

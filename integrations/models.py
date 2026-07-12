@@ -1,8 +1,28 @@
 """Google Sheets and document upload models."""
 
+from django.conf import settings
 from django.db import models
 
 from stories.models import Story
+
+
+class GoogleCredential(models.Model):
+    """OAuth tokens for a user's Google account (Sheets API)."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="google_credential",
+    )
+    access_token = models.TextField()
+    refresh_token = models.TextField(blank=True)
+    token_expiry = models.DateTimeField(null=True, blank=True)
+    scopes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"Google credentials for {self.user.username}"
 
 
 class GoogleSheetConnection(models.Model):
@@ -15,9 +35,6 @@ class GoogleSheetConnection(models.Model):
     )
     spreadsheet_id = models.CharField(max_length=255)
     sheet_name = models.CharField(max_length=255, default="Chapters")
-    access_token = models.TextField(blank=True)
-    refresh_token = models.TextField(blank=True)
-    token_expiry = models.DateTimeField(null=True, blank=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
     sync_enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

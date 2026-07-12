@@ -15,6 +15,7 @@ class AuthorProfile(models.Model):
     display_name = models.CharField(max_length=150, blank=True)
     bio = models.TextField(blank=True)
     stripe_account_id = models.CharField(max_length=255, blank=True)
+    stripe_connect_onboarded = models.BooleanField(default=False)
     website = models.URLField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

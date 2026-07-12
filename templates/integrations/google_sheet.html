@@ -5,6 +5,16 @@
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 sm:px-6 py-12">
   <h1 class="font-serif text-3xl font-semibold mb-8">Connect Google Sheet</h1>
+
+  {% if google_connected %}
+    <p class="text-sm text-emerald-600 dark:text-emerald-400 mb-6">✓ Google account connected</p>
+  {% else %}
+    <div class="card p-6 mb-6">
+      <p class="text-sm text-stone-600 dark:text-stone-400 mb-4">Connect your Google account to enable sheet syncing.</p>
+      <a href="{% url 'integrations:google_auth_start' %}?next={{ request.path }}" class="btn-primary text-sm">Connect Google account</a>
+    </div>
+  {% endif %}
+
   <form method="post" class="card p-8 space-y-6">
     {% csrf_token %}
     <div>
@@ -22,7 +32,6 @@
     </div>
     <p class="text-sm text-stone-500">
       Format your sheet with columns: <strong>Number</strong>, <strong>Title</strong>, <strong>Content</strong>.
-      OAuth credentials are required for live sync (see documentation).
     </p>
     <button type="submit" class="btn-primary">Save connection</button>
   </form>

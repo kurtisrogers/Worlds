@@ -1,0 +1,16 @@
+<div class="space-y-4">
+  {% for comment in comments %}
+    <div class="card p-4">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-7 h-7 rounded-full bg-worlds-200 dark:bg-stone-700 flex items-center justify-center text-xs font-medium">
+          {{ comment.user.username|first|upper }}
+        </span>
+        <span class="text-sm font-medium">{{ comment.user.username }}</span>
+        <span class="text-xs text-stone-400">{{ comment.created_at|timesince }} ago</span>
+      </div>
+      <p class="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">{{ comment.body }}</p>
+    </div>
+  {% empty %}
+    <p class="text-sm text-stone-500">No comments yet. Be the first to share your thoughts.</p>
+  {% endfor %}
+</div>

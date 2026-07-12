@@ -25,6 +25,11 @@ class TierName(models.TextChoices):
     GOLD = "gold", "Gold"
 
 
+class ContentFormat(models.TextChoices):
+    PLAIN = "plain", "Plain Text"
+    HTML = "html", "Rich Text (HTML)"
+
+
 class Story(models.Model):
     """A book or serial story being written by an author."""
 
@@ -87,6 +92,11 @@ class Chapter(models.Model):
     number = models.PositiveIntegerField()
     title = models.CharField(max_length=255)
     content = models.TextField(blank=True)
+    content_format = models.CharField(
+        max_length=10,
+        choices=ContentFormat.choices,
+        default=ContentFormat.PLAIN,
+    )
     is_published = models.BooleanField(default=False)
     unlock_price_cents = models.PositiveIntegerField(
         null=True,

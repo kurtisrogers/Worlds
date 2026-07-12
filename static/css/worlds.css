@@ -153,6 +153,20 @@
   background-color: #fdf8f3;
 }
 
+.prose-rich h2 { font-size: 1.5rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+.prose-rich blockquote {
+  border-left: 3px solid #dda06a;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #57534e;
+}
+.prose-rich ul, .prose-rich ol { margin: 1rem 0; padding-left: 1.5rem; }
+.prose-rich li { margin-bottom: 0.5rem; }
+.prose-rich hr { margin: 2rem 0; border-color: #f2d9bd; }
+.dark .prose-rich blockquote { color: #a8a29e; }
+.dark .prose-rich hr { border-color: #44403c; }
+
 .hero-gradient {
   background: linear-gradient(135deg, #fdf8f3 0%, #f9ede0 50%, #f2d9bd 100%);
 }

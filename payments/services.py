@@ -9,6 +9,7 @@ import stripe
 from django.conf import settings
 from django.urls import reverse
 
+from payments.connect import connect_payment_params, connect_subscription_params
 from payments.models import Transaction, TransactionStatus, TransactionType
 from stories.models import Chapter, ReaderSubscription, Story, SubscriptionTier
 
@@ -39,10 +40,10 @@ def create_chapter_checkout_session(
     )
     cancel_url = request.build_absolute_uri(chapter.get_absolute_url())
 
-    session = stripe.checkout.Session.create(
-        mode="payment",
-        customer_email=user.email,
-        line_items=[
+    session_kwargs: dict = {
+        "mode": "payment",
+        "customer_email": user.email,
+        "line_items": [
             {
                 "price_data": {
                     "currency": "usd",
@@ -55,15 +56,20 @@ def create_chapter_checkout_session(
                 "quantity": 1,
             }
         ],
-        metadata={
+        "metadata": {
             "type": "chapter_unlock",
             "chapter_id": str(chapter.id),
             "user_id": str(user.id),
             "platform_fee_cents": str(fee),
         },
-        success_url=success_url + "?unlocked=1",
-        cancel_url=cancel_url,
-    )
+        "success_url": success_url + "?unlocked=1",
+        "cancel_url": cancel_url,
+    }
+    connect_params = connect_payment_params(chapter.story.author, amount)
+    if connect_params:
+        session_kwargs["payment_intent_data"] = connect_params
+
+    session = stripe.checkout.Session.create(**session_kwargs)
 
     Transaction.objects.create(
         user=user,
@@ -88,10 +94,10 @@ def create_subscription_checkout_session(
     success_url = request.build_absolute_uri(tier.story.get_absolute_url())
     cancel_url = success_url
 
-    session = stripe.checkout.Session.create(
-        mode="subscription",
-        customer_email=user.email,
-        line_items=[
+    session_kwargs: dict = {
+        "mode": "subscription",
+        "customer_email": user.email,
+        "line_items": [
             {
                 "price_data": {
                     "currency": "usd",
@@ -105,16 +111,21 @@ def create_subscription_checkout_session(
                 "quantity": 1,
             }
         ],
-        metadata={
+        "metadata": {
             "type": "subscription",
             "tier_id": str(tier.id),
             "story_id": str(tier.story_id),
             "user_id": str(user.id),
             "platform_fee_cents": str(fee),
         },
-        success_url=success_url + "?subscribed=1",
-        cancel_url=cancel_url,
-    )
+        "success_url": success_url + "?subscribed=1",
+        "cancel_url": cancel_url,
+    }
+    connect_params = connect_subscription_params(tier.story.author)
+    if connect_params:
+        session_kwargs["subscription_data"] = connect_params
+
+    session = stripe.checkout.Session.create(**session_kwargs)
 
     Transaction.objects.create(
         user=user,
