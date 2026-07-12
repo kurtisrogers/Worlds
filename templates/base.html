@@ -1,0 +1,121 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" x-data="{ dark: localStorage.getItem('theme') === 'dark' }" :class="{ 'dark': dark }">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ PLATFORM_NAME }}{% endblock %} — Fund the next generation of creatives</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['Literata', 'Georgia', 'serif'],
+            sans: ['DM Sans', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            worlds: {
+              50: '#fdf8f3',
+              100: '#f9ede0',
+              200: '#f2d9bd',
+              300: '#e8bf94',
+              400: '#dda06a',
+              500: '#d4864a',
+              600: '#c66d3a',
+              700: '#a55531',
+              800: '#85452d',
+              900: '#6c3a27',
+            },
+          },
+        },
+      },
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="{% static 'css/worlds.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-worlds-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans antialiased">
+  <nav class="border-b border-worlds-200/60 dark:border-stone-800 bg-white/80 dark:bg-stone-900/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+      <a href="{% url 'stories:home' %}" class="flex items-center gap-2 group">
+        <span class="text-2xl font-serif font-semibold text-worlds-700 dark:text-worlds-300 group-hover:text-worlds-600 transition">Worlds</span>
+      </a>
+
+      <div class="hidden md:flex items-center gap-6 text-sm font-medium">
+        <a href="{% url 'stories:discover' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Discover</a>
+        {% if user.is_authenticated %}
+          <a href="{% url 'library:index' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Library</a>
+          <a href="{% url 'stories:dashboard' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">My Stories</a>
+          <a href="{% url 'payments:history' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Payments</a>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button @click="dark = !dark; localStorage.setItem('theme', dark ? 'dark' : 'light')"
+                class="p-2 rounded-lg hover:bg-worlds-100 dark:hover:bg-stone-800 transition"
+                aria-label="Toggle theme">
+          <span x-show="!dark">🌙</span>
+          <span x-show="dark">☀️</span>
+        </button>
+
+        {% if user.is_authenticated %}
+          <a href="{% url 'accounts:profile' %}" class="text-sm text-stone-600 dark:text-stone-400 hidden sm:inline">{{ user.username }}</a>
+          <a href="{% url 'accounts:logout' %}" class="btn-secondary text-sm">Sign out</a>
+        {% else %}
+          <a href="{% url 'accounts:login' %}" class="text-sm text-stone-600 dark:text-stone-400 hover:text-worlds-600 transition">Sign in</a>
+          <a href="{% url 'accounts:register' %}" class="btn-primary text-sm">Start writing</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  {% if messages %}
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-4 space-y-2">
+      {% for message in messages %}
+        <div class="rounded-lg px-4 py-3 text-sm {% if message.tags == 'error' %}bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200{% elif message.tags == 'warning' %}bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200{% else %}bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <main class="{% block main_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t border-worlds-200/60 dark:border-stone-800 mt-20">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+      <div class="flex flex-col md:flex-row justify-between gap-8">
+        <div>
+          <p class="font-serif text-xl text-worlds-700 dark:text-worlds-300 mb-2">Worlds</p>
+          <p class="text-sm text-stone-500 dark:text-stone-400 max-w-sm">
+            Fund emerging authors directly. No algorithms. No gatekeepers.
+            We take {{ PLATFORM_FEE_PERCENT }}% to cover operating costs — the rest goes to creators.
+          </p>
+        </div>
+        <div class="flex gap-12 text-sm text-stone-500 dark:text-stone-400">
+          <div>
+            <p class="font-medium text-stone-700 dark:text-stone-300 mb-2">Readers</p>
+            <a href="{% url 'stories:discover' %}" class="block hover:text-worlds-600 transition">Discover stories</a>
+            <a href="{% url 'library:index' %}" class="block hover:text-worlds-600 transition">Your library</a>
+          </div>
+          <div>
+            <p class="font-medium text-stone-700 dark:text-stone-300 mb-2">Authors</p>
+            <a href="{% url 'accounts:register' %}" class="block hover:text-worlds-600 transition">Start writing</a>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs text-stone-400 mt-8">&copy; 2026 Worlds. Built for the next generation of creatives.</p>
+    </div>
+  </footer>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

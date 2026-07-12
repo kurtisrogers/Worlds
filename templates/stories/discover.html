@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Discover{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-2">Discover stories</h1>
+  <p class="text-sm text-stone-500 mb-8">Browse emerging authors — no algorithms, just great writing.</p>
+
+  <form method="get" class="mb-10">
+    <input type="search" name="q" value="{{ query }}" placeholder="Search titles and synopses..."
+           class="form-input max-w-md">
+  </form>
+
+  {% if stories %}
+    <div class="book-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+      {% for story in stories %}
+        {% include "library/partials/book_tile.html" with story=story meta=empty_dict %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-stone-500">No stories found.</p>
+  {% endif %}
+</div>
+{% endblock %}

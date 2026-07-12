@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Manage {{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+  <div class="flex flex-col lg:flex-row gap-10 mb-12">
+    <section class="flex-shrink-0">
+      <h2 class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-4">Cover art</h2>
+      <div class="flex gap-6 items-start">
+        <div class="w-36 aspect-[2/3] rounded-lg overflow-hidden shadow-lg bg-stone-200 dark:bg-stone-800 flex-shrink-0">
+          {% if story.cover_image %}
+            <img src="{{ story.cover_image.url }}" alt="{{ story.title }}" class="w-full h-full object-cover" id="cover-preview">
+          {% else %}
+            <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-worlds-200 to-worlds-400 dark:from-stone-700 dark:to-stone-800" id="cover-preview">
+              <span class="font-serif text-3xl text-worlds-700 dark:text-worlds-300">{{ story.title|first }}</span>
+            </div>
+          {% endif %}
+        </div>
+        <form method="post" enctype="multipart/form-data" class="flex-1">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload_cover">
+          <label class="block text-sm font-medium mb-2" for="cover_image">Upload cover image</label>
+          <input type="file" name="cover_image" id="cover_image" accept="image/*" class="form-input text-sm mb-3"
+                 onchange="previewCover(this)">
+          <p class="text-xs text-stone-500 mb-3">Recommended: portrait orientation, 1600×2400px or similar 2:3 ratio.</p>
+          <button type="submit" class="btn-primary text-sm">Update cover</button>
+        </form>
+      </div>
+    </section>
+
+    <div class="flex-1">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 class="font-serif text-3xl font-semibold">{{ story.title }}</h1>
+          <p class="text-sm text-stone-500 mt-1 capitalize">{{ story.get_status_display }} · {{ story.get_content_source_display }}</p>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <a href="{% url 'stories:edit' slug=story.slug %}" class="btn-secondary text-sm">Edit details</a>
+          <a href="{% url 'integrations:manage' slug=story.slug %}" class="btn-secondary text-sm">Integrations</a>
+          <a href="{% url 'stories:chapter_create' slug=story.slug %}" class="btn-primary text-sm">Add chapter</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="mb-12">
+    <h2 class="font-semibold mb-4">Chapters</h2>
+    <div class="space-y-2" id="chapter-list">
+      {% for chapter in chapters %}
+        {% include "stories/partials/chapter_row.html" %}
+      {% empty %}
+        <p class="text-stone-500">No chapters yet. <a href="{% url 'stories:chapter_create' slug=story.slug %}" class="text-worlds-600 hover:underline">Add one</a>.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="font-semibold mb-4">Subscription tiers</h2>
+    <div class="grid sm:grid-cols-3 gap-4">
+      {% for tier in tiers %}
+        <div class="card p-4 border-t-4 tier-{{ tier.name }}">
+          <h3 class="font-medium capitalize">{{ tier.get_name_display }}</h3>
+          <p class="text-lg font-serif">{{ tier.price_dollars }}/mo</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<script>
+  function previewCover(input) {
+    if (!input.files?.[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const el = document.getElementById('cover-preview');
+      el.outerHTML = `<img src="${e.target.result}" alt="Cover preview" class="w-full h-full object-cover" id="cover-preview">`;
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+</script>
+{% endblock %}

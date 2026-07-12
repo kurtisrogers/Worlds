@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Create account{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto px-4 sm:px-6 py-16">
+  <h1 class="font-serif text-3xl font-semibold text-center mb-2">Join Worlds</h1>
+  <p class="text-center text-stone-500 mb-8 text-sm">Start writing or discover emerging authors</p>
+  <form method="post" class="card p-8 space-y-6">
+    {% csrf_token %}
+    {% for field in form %}
+      <div>
+        <label class="block text-sm font-medium mb-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        <input type="{{ field.field.widget.input_type|default:'text' }}" name="{{ field.name }}" id="{{ field.id_for_label }}"
+               class="form-input" {% if field.field.required %}required{% endif %}>
+        {% if field.errors %}
+          <p class="text-red-600 text-sm mt-1">{{ field.errors.0 }}</p>
+        {% endif %}
+        {% if field.help_text %}
+          <p class="text-xs text-stone-500 mt-1">{{ field.help_text }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn-primary w-full">Create account</button>
+    <p class="text-center text-sm text-stone-500">
+      Already have an account? <a href="{% url 'accounts:login' %}" class="text-worlds-600 hover:underline">Sign in</a>
+    </p>
+  </form>
+</div>
+{% endblock %}

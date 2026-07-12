@@ -1,0 +1,42 @@
+site_name: Worlds Documentation
+site_description: Reader-funded publishing for emerging authors
+site_url: https://worlds.example.com
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep orange
+      accent: amber
+    - scheme: slate
+      primary: deep orange
+      accent: amber
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+  - Authors:
+    - Writing on Worlds: authors/writing.md
+    - Google Sheets: authors/google-sheets.md
+    - Document Upload: authors/document-upload.md
+    - Subscriptions: authors/subscriptions.md
+  - Readers:
+    - Discovering Stories: readers/discovering.md
+    - Your Library: readers/library.md
+    - Supporting Authors: readers/supporting.md
+  - Development:
+    - Testing: development/testing.md
+    - Stripe Integration: development/stripe.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - toc:
+      permalink: true

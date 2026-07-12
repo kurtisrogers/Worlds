@@ -1,0 +1,10 @@
+<button type="button"
+        hx-post="{% url 'library:toggle_save' slug=story.slug %}"
+        hx-swap="outerHTML"
+        class="{% if is_saved %}btn-secondary{% else %}btn-primary{% endif %} text-sm inline-flex items-center gap-2">
+  {% if is_saved %}
+    <span>✓</span> In your library
+  {% else %}
+    <span>+</span> Add to library
+  {% endif %}
+</button>

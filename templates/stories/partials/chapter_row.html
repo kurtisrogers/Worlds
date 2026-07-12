@@ -1,0 +1,17 @@
+<div class="card p-4 flex items-center justify-between">
+  <div class="flex items-center gap-4">
+    <span class="text-sm font-mono text-stone-400">{{ chapter.number }}</span>
+    <div>
+      <span class="font-medium">{{ chapter.title }}</span>
+      {% if chapter.is_published %}
+        <span class="text-xs text-emerald-600 ml-2">Published</span>
+      {% else %}
+        <span class="text-xs text-stone-400 ml-2">Draft</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'editor:edit' slug=story.slug number=chapter.number %}" class="btn-ghost text-sm">Edit</a>
+    <a href="{% url 'stories:chapter_edit' slug=story.slug number=chapter.number %}" class="btn-ghost text-sm">Settings</a>
+  </div>
+</div>

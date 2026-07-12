@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Google Sheets — {{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-8">Connect Google Sheet</h1>
+  <form method="post" class="card p-8 space-y-6">
+    {% csrf_token %}
+    <div>
+      <label class="block text-sm font-medium mb-2" for="spreadsheet_id">Spreadsheet ID</label>
+      <input type="text" name="spreadsheet_id" id="spreadsheet_id"
+             value="{% if connection %}{{ connection.spreadsheet_id }}{% endif %}"
+             class="form-input" placeholder="From the Google Sheets URL" required>
+      <p class="text-xs text-stone-500 mt-1">e.g. from https://docs.google.com/spreadsheets/d/<strong>SPREADSHEET_ID</strong>/edit</p>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-2" for="sheet_name">Sheet name</label>
+      <input type="text" name="sheet_name" id="sheet_name"
+             value="{% if connection %}{{ connection.sheet_name }}{% else %}Chapters{% endif %}"
+             class="form-input">
+    </div>
+    <p class="text-sm text-stone-500">
+      Format your sheet with columns: <strong>Number</strong>, <strong>Title</strong>, <strong>Content</strong>.
+      OAuth credentials are required for live sync (see documentation).
+    </p>
+    <button type="submit" class="btn-primary">Save connection</button>
+  </form>
+</div>
+{% endblock %}

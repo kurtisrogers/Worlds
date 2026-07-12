@@ -1,0 +1,153 @@
+:root {
+  --worlds-50: #fdf8f3;
+  --worlds-100: #f9ede0;
+  --worlds-600: #c66d3a;
+  --worlds-700: #a55531;
+  --stone-500: #78716c;
+  --stone-800: #292524;
+  --stone-900: #1c1917;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: var(--stone-900);
+  background: var(--worlds-50);
+  line-height: 1.6;
+}
+
+.container { max-width: 72rem; margin: 0 auto; padding: 0 1.5rem; }
+.narrow { max-width: 40rem; }
+.center { text-align: center; }
+
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--worlds-100);
+}
+
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 4rem;
+}
+
+.logo {
+  font-family: 'Literata', Georgia, serif;
+  font-size: 1.5rem; font-weight: 600;
+  color: var(--worlds-700); text-decoration: none;
+}
+
+.nav-links { display: flex; align-items: center; gap: 1.5rem; }
+.nav-links a { color: var(--stone-500); text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+.nav-links a:hover { color: var(--worlds-600); }
+
+.btn-primary, .btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.625rem 1.25rem; border-radius: 0.75rem;
+  font-weight: 500; text-decoration: none; font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--worlds-600); color: white;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.btn-primary:hover { background: var(--worlds-700); }
+
+.btn-secondary {
+  border: 1px solid #e8bf94; color: var(--stone-800);
+}
+.btn-secondary:hover { background: var(--worlds-100); }
+
+.btn-lg { padding: 0.875rem 2rem; font-size: 1rem; }
+
+.hero {
+  background: linear-gradient(135deg, #fdf8f3 0%, #f9ede0 50%, #f2d9bd 100%);
+  padding: 5rem 0 6rem;
+  text-align: center;
+}
+
+.eyebrow {
+  color: var(--worlds-600); font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.15em; font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+.hero h1 {
+  font-family: 'Literata', Georgia, serif;
+  font-size: clamp(2.25rem, 5vw, 3.75rem);
+  font-weight: 600; line-height: 1.15; margin-bottom: 1.5rem;
+}
+
+.hero-text {
+  font-size: 1.125rem; color: var(--stone-500);
+  max-width: 36rem; margin: 0 auto 2.5rem;
+}
+
+.hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+.section { padding: 4rem 0; }
+.section-alt { background: rgba(249,237,224,0.5); }
+.section h2 {
+  font-family: 'Literata', Georgia, serif;
+  font-size: 1.75rem; font-weight: 600;
+  text-align: center; margin-bottom: 3rem;
+}
+
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.5rem; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 2rem; align-items: start; }
+
+.card {
+  background: white; border-radius: 1rem;
+  border: 1px solid rgba(232,191,148,0.5);
+  padding: 1.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.card .icon { font-size: 1.5rem; margin-bottom: 1rem; }
+.card h3 { font-weight: 600; margin-bottom: 0.5rem; }
+.card p { font-size: 0.875rem; color: var(--stone-500); }
+
+.card.highlight { background: white; }
+
+.feature-list { list-style: none; }
+.feature-list li {
+  padding: 0.75rem 0; border-bottom: 1px solid var(--worlds-100);
+  font-size: 0.9375rem; color: var(--stone-500);
+}
+.feature-list strong { color: var(--stone-900); }
+
+.tier {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.75rem 1rem; margin-bottom: 0.5rem;
+  border-radius: 0.5rem; font-weight: 500;
+  border-left: 4px solid;
+}
+.tier-bronze { border-color: #cd7f32; background: #fdf8f3; }
+.tier-silver { border-color: #c0c0c0; background: #f8f8f8; }
+.tier-gold { border-color: #ffd700; background: #fffbeb; }
+
+.small { font-size: 0.8125rem; color: var(--stone-500); margin-top: 1rem; }
+
+.mission blockquote {
+  font-family: 'Literata', Georgia, serif;
+  font-size: 1.25rem; font-style: italic;
+  color: var(--stone-800); margin-bottom: 1.5rem;
+  border-left: 4px solid var(--worlds-600);
+  padding-left: 1.5rem;
+}
+
+.cta-section { padding: 5rem 0; }
+.cta-section p { color: var(--stone-500); margin: 1rem 0 2rem; }
+
+.footer {
+  border-top: 1px solid var(--worlds-100);
+  padding: 3rem 0;
+}
+.footer-inner { text-align: center; }
+.footer .logo { display: inline-block; margin-bottom: 0.5rem; }
+
+@media (max-width: 640px) {
+  .nav-links a:not(.btn-secondary) { display: none; }
+}
