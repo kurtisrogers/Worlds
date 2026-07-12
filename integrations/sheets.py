@@ -6,7 +6,9 @@ import logging
 import re
 
 from django.utils import timezone
+from googleapiclient.discovery import build
 
+from integrations.google_oauth import get_credentials
 from integrations.models import GoogleSheetConnection
 from stories.models import Chapter
 
@@ -46,7 +48,7 @@ def sync_chapters_from_rows(story, chapters_data: list[dict]) -> int:
     """Upsert chapters from parsed data. Returns count of chapters synced."""
     synced = 0
     for data in chapters_data:
-        chapter, _ = Chapter.objects.update_or_create(
+        Chapter.objects.update_or_create(
             story=story,
             number=data["number"],
             defaults={
@@ -59,21 +61,16 @@ def sync_chapters_from_rows(story, chapters_data: list[dict]) -> int:
 
 
 def sync_from_google_sheets(connection: GoogleSheetConnection) -> int:
-    """
-    Sync chapters from a connected Google Sheet.
-
-    Uses the Google Sheets API when credentials are available;
-    falls back to no-op in development without credentials.
-    """
-    if not connection.access_token:
-        logger.warning("No access token for sheet connection %s", connection.pk)
+    """Sync chapters from a connected Google Sheet using author OAuth credentials."""
+    author = connection.story.author
+    creds = get_credentials(author)
+    if not creds:
+        logger.warning(
+            "No Google credentials for author of connection %s", connection.pk
+        )
         return 0
 
     try:
-        from google.oauth2.credentials import Credentials
-        from googleapiclient.discovery import build
-
-        creds = Credentials(token=connection.access_token)
         service = build("sheets", "v4", credentials=creds)
         result = (
             service.spreadsheets()

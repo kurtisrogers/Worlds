@@ -9,8 +9,8 @@
 
   <div class="space-y-8">
     <section class="card p-6">
-      <h2 class="font-semibold text-lg mb-2">✍️ In-app editor</h2>
-      <p class="text-sm text-stone-600 dark:text-stone-400 mb-4">Write directly on Worlds with autosave and a distraction-free interface.</p>
+      <h2 class="font-semibold text-lg mb-2">✍️ Rich-text editor</h2>
+      <p class="text-sm text-stone-600 dark:text-stone-400 mb-4">Write with TipTap — bold, headings, lists, blockquotes, and scene breaks. Autosaves as you type.</p>
       <a href="{% url 'editor:edit' slug=story.slug number=1 %}" class="btn-primary text-sm">Open editor</a>
     </section>
 
@@ -34,17 +34,26 @@
       <p class="text-sm text-stone-600 dark:text-stone-400 mb-4">
         Connect a spreadsheet with columns: Number, Title, Content. Sync to import chapters.
       </p>
+
+      {% if google_connected %}
+        <p class="text-sm text-emerald-600 dark:text-emerald-400 mb-4">✓ Google account connected</p>
+      {% else %}
+        <a href="{% url 'integrations:google_auth_start' %}?next={{ request.path }}" class="btn-primary text-sm mb-4 inline-block">Connect Google account</a>
+      {% endif %}
+
       {% if connection %}
-        <p class="text-sm mb-2">Connected: <code class="text-xs bg-worlds-100 dark:bg-stone-800 px-2 py-1 rounded">{{ connection.spreadsheet_id }}</code></p>
+        <p class="text-sm mb-2">Spreadsheet: <code class="text-xs bg-worlds-100 dark:bg-stone-800 px-2 py-1 rounded">{{ connection.spreadsheet_id }}</code></p>
         {% if connection.last_synced_at %}
           <p class="text-xs text-stone-500 mb-4">Last synced: {{ connection.last_synced_at }}</p>
         {% endif %}
         <div class="flex gap-2">
-          <a href="{% url 'integrations:sync_sheet' slug=story.slug %}" class="btn-primary text-sm">Sync now</a>
+          {% if google_connected %}
+            <a href="{% url 'integrations:sync_sheet' slug=story.slug %}" class="btn-primary text-sm">Sync now</a>
+          {% endif %}
           <a href="{% url 'integrations:google_sheet' slug=story.slug %}" class="btn-ghost text-sm">Edit connection</a>
         </div>
       {% else %}
-        <a href="{% url 'integrations:google_sheet' slug=story.slug %}" class="btn-secondary text-sm">Connect Google Sheet</a>
+        <a href="{% url 'integrations:google_sheet' slug=story.slug %}" class="btn-secondary text-sm">Configure spreadsheet</a>
       {% endif %}
     </section>
   </div>

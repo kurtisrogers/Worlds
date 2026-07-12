@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Staff dashboard{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-2">Staff dashboard</h1>
+  <p class="text-sm text-stone-500 mb-6">Platform administration for Worlds support and operations</p>
+
+  {% include "staff/_nav.html" with staff_section="dashboard" %}
+
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+    <div class="card p-5">
+      <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Users</p>
+      <p class="font-serif text-2xl font-semibold">{{ stats.users }}</p>
+    </div>
+    <div class="card p-5">
+      <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Stories</p>
+      <p class="font-serif text-2xl font-semibold">{{ stats.stories }}</p>
+    </div>
+    <div class="card p-5">
+      <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Active subscriptions</p>
+      <p class="font-serif text-2xl font-semibold">{{ stats.active_subscriptions }}</p>
+    </div>
+    <div class="card p-5">
+      <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Comments</p>
+      <p class="font-serif text-2xl font-semibold">{{ stats.pending_comments }}</p>
+    </div>
+    <div class="card p-5">
+      <p class="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-1">Transactions</p>
+      <p class="font-serif text-2xl font-semibold">{{ stats.recent_transactions }}</p>
+    </div>
+  </div>
+
+  <h2 class="font-serif text-lg font-semibold mb-4">Staff team</h2>
+  {% if staff_accounts %}
+    <div class="space-y-2">
+      {% for account in staff_accounts %}
+        <div class="card p-4 flex justify-between items-center text-sm">
+          <a href="{% url 'staff:user_detail' username=account.user.username %}" class="font-medium hover:text-worlds-600 transition">{{ account.user.username }}</a>
+          <span class="text-stone-500">{{ account.get_platform_role_display }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-stone-500 text-sm">No staff accounts configured.</p>
+  {% endif %}
+</div>
+{% endblock %}

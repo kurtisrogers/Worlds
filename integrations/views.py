@@ -1,13 +1,65 @@
 """Integration views for Google Sheets and document uploads."""
 
+import secrets
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from integrations.documents import process_document_upload
+from integrations.google_oauth import (
+    exchange_code_for_credentials,
+    get_authorization_url,
+    save_credentials,
+    user_has_google_credentials,
+)
 from integrations.models import DocumentUpload, GoogleSheetConnection
 from integrations.sheets import sync_from_google_sheets
 from stories.models import ContentSource, Story
+
+
+@login_required
+def google_auth_start(request):
+    """Redirect user to Google OAuth consent screen."""
+    state = secrets.token_urlsafe(32)
+    request.session["google_oauth_state"] = state
+    request.session["google_oauth_next"] = request.GET.get(
+        "next", request.META.get("HTTP_REFERER", "/")
+    )
+    return redirect(get_authorization_url(state))
+
+
+@login_required
+def google_auth_callback(request):
+    """Handle Google OAuth callback and store credentials."""
+    state = request.session.pop("google_oauth_state", None)
+    next_url = request.session.pop("google_oauth_next", "/")
+
+    if request.GET.get("state") != state:
+        messages.error(request, "Invalid OAuth state. Please try again.")
+        return redirect(next_url)
+
+    error = request.GET.get("error")
+    if error:
+        messages.error(request, f"Google authorization failed: {error}")
+        return redirect(next_url)
+
+    code = request.GET.get("code")
+    if not code:
+        messages.error(request, "No authorization code received.")
+        return redirect(next_url)
+
+    try:
+        creds = exchange_code_for_credentials(code)
+        save_credentials(request.user, creds)
+        messages.success(request, "Google account connected successfully.")
+    except Exception:
+        messages.error(
+            request, "Failed to connect Google account. Check your OAuth settings."
+        )
+
+    return redirect(next_url)
 
 
 @login_required
@@ -34,7 +86,11 @@ def connect_google_sheet(request, slug):
     return render(
         request,
         "integrations/google_sheet.html",
-        {"story": story, "connection": connection},
+        {
+            "story": story,
+            "connection": connection,
+            "google_connected": user_has_google_credentials(request.user),
+        },
     )
 
 
@@ -42,13 +98,20 @@ def connect_google_sheet(request, slug):
 def sync_google_sheet(request, slug):
     story = get_object_or_404(Story, slug=slug, author=request.user)
     connection = get_object_or_404(GoogleSheetConnection, story=story)
+
+    if not user_has_google_credentials(request.user):
+        messages.warning(request, "Connect your Google account first.")
+        return redirect(
+            f"{reverse('integrations:google_auth_start')}?next={request.path}"
+        )
+
     count = sync_from_google_sheets(connection)
     if count:
         messages.success(request, f"Synced {count} chapters from Google Sheets.")
     else:
         messages.warning(
             request,
-            "No chapters synced. Check your sheet format and Google credentials.",
+            "No chapters synced. Check your sheet format and spreadsheet ID.",
         )
     return redirect("integrations:manage", slug=slug)
 
@@ -91,5 +154,10 @@ def integrations_manage(request, slug):
     return render(
         request,
         "integrations/manage.html",
-        {"story": story, "connection": connection, "uploads": uploads},
+        {
+            "story": story,
+            "connection": connection,
+            "uploads": uploads,
+            "google_connected": user_has_google_credentials(request.user),
+        },
     )

@@ -8,7 +8,8 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from stories.models import Chapter, ContentSource, Story
+from stories.content import sanitize_html
+from stories.models import Chapter, ContentFormat, ContentSource, Story
 
 
 @login_required
@@ -36,9 +37,18 @@ def autosave(request, slug, number):
         return HttpResponse("Invalid JSON", status=400)
 
     chapter.title = data.get("title", chapter.title)
-    chapter.content = data.get("content", chapter.content)
+    raw_content = data.get("content", chapter.content)
+    content_format = data.get("content_format", ContentFormat.HTML)
+
+    if content_format == ContentFormat.HTML:
+        chapter.content = sanitize_html(raw_content)
+        chapter.content_format = ContentFormat.HTML
+    else:
+        chapter.content = raw_content
+        chapter.content_format = ContentFormat.PLAIN
+
     chapter.updated_at = timezone.now()
-    chapter.save(update_fields=["title", "content", "updated_at"])
+    chapter.save(update_fields=["title", "content", "content_format", "updated_at"])
 
     story.content_source = ContentSource.EDITOR
     story.save(update_fields=["content_source", "updated_at"])

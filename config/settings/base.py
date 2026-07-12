@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "integrations",
     "editor",
     "library",
+    "engagement",
 ]
 
 MIDDLEWARE = [
@@ -58,6 +59,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "config.context_processors.platform_settings",
+                "accounts.context_processors.user_roles",
             ],
         },
     },

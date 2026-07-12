@@ -9,6 +9,8 @@ import stripe
 from django.conf import settings
 from django.urls import reverse
 
+from payments.billing import save_customer_from_checkout
+from payments.connect import connect_payment_params, connect_subscription_params
 from payments.models import Transaction, TransactionStatus, TransactionType
 from stories.models import Chapter, ReaderSubscription, Story, SubscriptionTier
 
@@ -42,10 +44,10 @@ def create_chapter_checkout_session(
     )
     cancel_url = request.build_absolute_uri(chapter.get_absolute_url())
 
-    session = stripe.checkout.Session.create(
-        mode="payment",
-        customer_email=user.email,
-        line_items=[
+    session_kwargs: dict = {
+        "mode": "payment",
+        "customer_email": user.email,
+        "line_items": [
             {
                 "price_data": {
                     "currency": "usd",
@@ -58,15 +60,20 @@ def create_chapter_checkout_session(
                 "quantity": 1,
             }
         ],
-        metadata={
+        "metadata": {
             "type": "chapter_unlock",
             "chapter_id": str(chapter.id),
             "user_id": str(user.id),
             "platform_fee_cents": str(fee),
         },
-        success_url=success_url + "?unlocked=1",
-        cancel_url=cancel_url,
-    )
+        "success_url": success_url + "?unlocked=1",
+        "cancel_url": cancel_url,
+    }
+    connect_params = connect_payment_params(chapter.story.author, amount)
+    if connect_params:
+        session_kwargs["payment_intent_data"] = connect_params
+
+    session = stripe.checkout.Session.create(**session_kwargs)
 
     Transaction.objects.create(
         user=user,
@@ -91,10 +98,10 @@ def create_subscription_checkout_session(
     success_url = request.build_absolute_uri(tier.story.get_absolute_url())
     cancel_url = success_url
 
-    session = stripe.checkout.Session.create(
-        mode="subscription",
-        customer_email=user.email,
-        line_items=[
+    session_kwargs: dict = {
+        "mode": "subscription",
+        "customer_email": user.email,
+        "line_items": [
             {
                 "price_data": {
                     "currency": "usd",
@@ -109,16 +116,21 @@ def create_subscription_checkout_session(
                 "quantity": 1,
             }
         ],
-        metadata={
+        "metadata": {
             "type": "subscription",
             "tier_id": str(tier.id),
             "story_id": str(tier.story_id),
             "user_id": str(user.id),
             "platform_fee_cents": str(fee),
         },
-        success_url=success_url + "?subscribed=1",
-        cancel_url=cancel_url,
-    )
+        "success_url": success_url + "?subscribed=1",
+        "cancel_url": cancel_url,
+    }
+    connect_params = connect_subscription_params(tier.story.author)
+    if connect_params:
+        session_kwargs["subscription_data"] = connect_params
+
+    session = stripe.checkout.Session.create(**session_kwargs)
 
     Transaction.objects.create(
         user=user,
@@ -143,13 +155,18 @@ def handle_checkout_completed(session: dict[str, Any]) -> None:
         stripe_payment_intent_id=session.get("payment_intent", ""),
     )
 
-    if session_type == "chapter_unlock":
-        from django.contrib.auth import get_user_model
+    from django.contrib.auth import get_user_model
 
-        User = get_user_model()
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=user_id)
+        save_customer_from_checkout(user, session.get("customer"))
+    except User.DoesNotExist:
+        pass
+
+    if session_type == "chapter_unlock":
         chapter_id = metadata.get("chapter_id")
         try:
-            user = User.objects.get(pk=user_id)
             chapter = Chapter.objects.get(pk=chapter_id)
             from stories.models import ChapterUnlock
 
@@ -162,12 +179,8 @@ def handle_checkout_completed(session: dict[str, Any]) -> None:
             logger.exception("Failed to process chapter unlock")
 
     elif session_type == "subscription":
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
         tier_id = metadata.get("tier_id")
         try:
-            user = User.objects.get(pk=user_id)
             tier = SubscriptionTier.objects.get(pk=tier_id)
             ReaderSubscription.objects.update_or_create(
                 reader=user,

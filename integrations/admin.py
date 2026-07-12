@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from integrations.models import DocumentUpload, GoogleSheetConnection
+from integrations.models import DocumentUpload, GoogleCredential, GoogleSheetConnection
+
+
+@admin.register(GoogleCredential)
+class GoogleCredentialAdmin(admin.ModelAdmin):
+    list_display = ["user", "token_expiry", "updated_at"]
+    readonly_fields = ["access_token", "refresh_token"]
 
 
 @admin.register(GoogleSheetConnection)

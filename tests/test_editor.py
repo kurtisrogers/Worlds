@@ -17,13 +17,20 @@ class TestEditor:
         url = reverse("editor:autosave", kwargs={"slug": story.slug, "number": 1})
         response = client_logged_in.post(
             url,
-            data=json.dumps({"title": "New Title", "content": "New content here."}),
+            data=json.dumps(
+                {
+                    "title": "New Title",
+                    "content": "<p>New <strong>content</strong> here.</p>",
+                    "content_format": "html",
+                }
+            ),
             content_type="application/json",
         )
         assert response.status_code == 200
         chapter.refresh_from_db()
         assert chapter.title == "New Title"
-        assert chapter.content == "New content here."
+        assert "<strong>" in chapter.content
+        assert chapter.content_format == "html"
 
     def test_editor_requires_author(self, client, story, reader):
         ChapterFactory(story=story, number=1)

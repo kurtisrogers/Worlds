@@ -53,7 +53,11 @@
         {% if user.is_authenticated %}
           <a href="{% url 'library:index' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Library</a>
           <a href="{% url 'stories:dashboard' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">My Stories</a>
-          <a href="{% url 'payments:history' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Payments</a>
+          <a href="{% url 'payments:billing' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Billing</a>
+          <a href="{% url 'payments:connect_dashboard' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Payouts</a>
+          {% if is_staff_member %}
+            <a href="{% url 'staff:dashboard' %}" class="text-stone-600 dark:text-stone-400 hover:text-worlds-600 dark:hover:text-worlds-300 transition">Staff</a>
+          {% endif %}
         {% endif %}
       </div>
 

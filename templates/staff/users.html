@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Staff — Users{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-2">Users</h1>
+  <p class="text-sm text-stone-500 mb-6">Search and manage platform accounts</p>
+
+  {% include "staff/_nav.html" with staff_section="users" %}
+
+  <form method="get" class="mb-6 flex gap-2">
+    <input type="search" name="q" value="{{ query }}" placeholder="Search by username, email, or role…"
+           class="flex-1 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 px-4 py-2 text-sm">
+    <button type="submit" class="btn-secondary text-sm">Search</button>
+  </form>
+
+  {% if users %}
+    <div class="space-y-2">
+      {% for u in users %}
+        <a href="{% url 'staff:user_detail' username=u.username %}" class="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-worlds-300 transition block">
+          <div>
+            <p class="font-medium">{{ u.username }}</p>
+            <p class="text-xs text-stone-500">{{ u.email }}</p>
+          </div>
+          <div class="flex gap-4 text-xs text-stone-500">
+            {% if u.account %}
+              <span>{{ u.account.get_platform_role_display }}</span>
+            {% endif %}
+            <span>{{ u.story_count }} stor{{ u.story_count|pluralize:"y,ies" }}</span>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-stone-500">No users found.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Author Payouts{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-2">Author payouts</h1>
+  <p class="text-sm text-stone-500 mb-8">
+    Connect your Stripe account to receive payouts directly. Worlds takes {{ PLATFORM_FEE_PERCENT }}% to cover operating costs.
+  </p>
+
+  <div class="card p-8">
+    {% if onboarded %}
+      <div class="flex items-center gap-3 mb-4">
+        <span class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-emerald-600">✓</span>
+        <div>
+          <p class="font-semibold text-emerald-700 dark:text-emerald-300">Stripe Connect active</p>
+          <p class="text-sm text-stone-500">You're ready to receive reader payments.</p>
+        </div>
+      </div>
+      <p class="text-xs text-stone-400 mb-4">Account ID: {{ profile.stripe_account_id }}</p>
+      <a href="{% url 'payments:connect_onboard' %}" class="btn-secondary text-sm">Update payout details</a>
+    {% elif profile.stripe_account_id %}
+      <p class="text-stone-600 dark:text-stone-400 mb-4">Your Stripe setup is incomplete. Finish onboarding to start receiving payouts.</p>
+      <a href="{% url 'payments:connect_onboard' %}" class="btn-primary">Continue setup</a>
+    {% else %}
+      <p class="text-stone-600 dark:text-stone-400 mb-6">
+        Set up Stripe Connect to receive chapter unlock payments and subscription revenue directly to your bank account.
+      </p>
+      <ul class="text-sm text-stone-500 space-y-2 mb-6">
+        <li>✓ Express onboarding — quick and secure</li>
+        <li>✓ Automatic transfers when readers pay</li>
+        <li>✓ {{ PLATFORM_FEE_PERCENT }}% platform fee on each transaction</li>
+      </ul>
+      <a href="{% url 'payments:connect_onboard' %}" class="btn-primary">Connect with Stripe</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

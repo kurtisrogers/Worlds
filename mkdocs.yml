@@ -23,16 +23,21 @@ nav:
     - Configuration: getting-started/configuration.md
   - Authors:
     - Writing on Worlds: authors/writing.md
+    - Rich-Text Editor: authors/rich-text-editor.md
     - Google Sheets: authors/google-sheets.md
+    - Google OAuth: authors/google-oauth.md
     - Document Upload: authors/document-upload.md
     - Subscriptions: authors/subscriptions.md
   - Readers:
     - Discovering Stories: readers/discovering.md
     - Your Library: readers/library.md
+    - Comments & Reactions: readers/engagement.md
     - Supporting Authors: readers/supporting.md
   - Development:
     - Testing: development/testing.md
+    - Fixture Data: development/fixtures.md
     - Stripe Integration: development/stripe.md
+    - Stripe Connect: development/stripe-connect.md
 
 markdown_extensions:
   - admonition
