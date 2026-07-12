@@ -117,10 +117,7 @@ class Chapter(models.Model):
 
     @property
     def is_free(self) -> bool:
-        return (
-            self.tier_required == TierName.NONE
-            and not self.unlock_price_cents
-        )
+        return self.tier_required == TierName.NONE and not self.unlock_price_cents
 
 
 class SubscriptionTier(models.Model):

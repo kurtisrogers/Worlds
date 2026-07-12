@@ -4,7 +4,6 @@ import pytest
 from django.urls import reverse
 
 from library.models import AuthorFollow, SavedStory
-from tests.factories import UserFactory
 
 
 @pytest.mark.django_db
@@ -46,7 +45,9 @@ class TestLibrary:
         assert response.status_code == 200
         assert story.title.encode() in response.content
 
-    def test_story_detail_shows_save_button(self, client, reader, story, published_chapter):
+    def test_story_detail_shows_save_button(
+        self, client, reader, story, published_chapter
+    ):
         client.login(username="reader1", password="testpass123")
         response = client.get(reverse("stories:detail", kwargs={"slug": story.slug}))
         assert response.status_code == 200

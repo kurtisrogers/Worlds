@@ -68,7 +68,9 @@ def upload_document(request, slug):
         if count:
             story.content_source = ContentSource.UPLOAD
             story.save(update_fields=["content_source"])
-            messages.success(request, f"Imported {count} chapters from {uploaded_file.name}.")
+            messages.success(
+                request, f"Imported {count} chapters from {uploaded_file.name}."
+            )
         else:
             messages.error(request, "Failed to parse document. Check the file format.")
         return redirect("integrations:manage", slug=slug)

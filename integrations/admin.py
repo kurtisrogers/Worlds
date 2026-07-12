@@ -10,5 +10,11 @@ class GoogleSheetConnectionAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentUpload)
 class DocumentUploadAdmin(admin.ModelAdmin):
-    list_display = ["original_filename", "story", "status", "chapters_created", "uploaded_at"]
+    list_display = [
+        "original_filename",
+        "story",
+        "status",
+        "chapters_created",
+        "uploaded_at",
+    ]
     list_filter = ["status"]

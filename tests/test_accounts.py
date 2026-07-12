@@ -16,8 +16,9 @@ class TestAccounts:
             },
         )
         assert response.status_code == 302
-        from accounts.models import AuthorProfile
         from django.contrib.auth.models import User
+
+        from accounts.models import AuthorProfile
 
         user = User.objects.get(username="newauthor")
         assert AuthorProfile.objects.filter(user=user).exists()

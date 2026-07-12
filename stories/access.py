@@ -2,7 +2,6 @@
 
 from stories.models import Chapter, ReaderSubscription, TierName
 
-
 TIER_RANK = {
     TierName.NONE: 0,
     TierName.BRONZE: 1,

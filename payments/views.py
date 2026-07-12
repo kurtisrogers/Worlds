@@ -1,6 +1,5 @@
 """Payment views including Stripe webhooks."""
 
-import json
 import logging
 
 import stripe

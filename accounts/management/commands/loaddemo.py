@@ -51,9 +51,30 @@ class Command(BaseCommand):
         ensure_story_tiers(story)
 
         chapters_data = [
-            (1, "The Dimming Light", "The lighthouse had burned for three hundred years...", True, None, TierName.NONE),
-            (2, "Charts of the Forgotten", "Maps, Mara discovered, were liars...", True, 299, TierName.NONE),
-            (3, "Silver Tides", "Only subscribers of Silver tier may read beyond this point...", True, None, TierName.SILVER),
+            (
+                1,
+                "The Dimming Light",
+                "The lighthouse had burned for three hundred years...",
+                True,
+                None,
+                TierName.NONE,
+            ),
+            (
+                2,
+                "Charts of the Forgotten",
+                "Maps, Mara discovered, were liars...",
+                True,
+                299,
+                TierName.NONE,
+            ),
+            (
+                3,
+                "Silver Tides",
+                "Only subscribers of Silver tier may read beyond this point...",
+                True,
+                None,
+                TierName.SILVER,
+            ),
         ]
 
         for number, title, content, published, price, tier in chapters_data:

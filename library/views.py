@@ -28,14 +28,20 @@ def library(request):
         tab = "all"
 
     all_stories = _story_queryset()
-    saved_ids = list(SavedStory.objects.filter(user=request.user).values_list("story_id", flat=True))
-    subscribed_ids = list(ReaderSubscription.objects.filter(
-        reader=request.user,
-        status=ReaderSubscription.Status.ACTIVE,
-    ).values_list("story_id", flat=True))
-    following_author_ids = list(AuthorFollow.objects.filter(
-        follower=request.user
-    ).values_list("author_id", flat=True))
+    saved_ids = list(
+        SavedStory.objects.filter(user=request.user).values_list("story_id", flat=True)
+    )
+    subscribed_ids = list(
+        ReaderSubscription.objects.filter(
+            reader=request.user,
+            status=ReaderSubscription.Status.ACTIVE,
+        ).values_list("story_id", flat=True)
+    )
+    following_author_ids = list(
+        AuthorFollow.objects.filter(follower=request.user).values_list(
+            "author_id", flat=True
+        )
+    )
 
     if tab == "saved":
         stories = all_stories.filter(id__in=saved_ids)
@@ -46,7 +52,9 @@ def library(request):
     else:
         combined_ids = set(saved_ids) | set(subscribed_ids)
         stories_from_follows = all_stories.filter(author_id__in=following_author_ids)
-        stories = (all_stories.filter(id__in=combined_ids) | stories_from_follows).distinct()
+        stories = (
+            all_stories.filter(id__in=combined_ids) | stories_from_follows
+        ).distinct()
 
     story_meta = {}
     for story in stories:
@@ -89,7 +97,11 @@ def toggle_save(request, slug):
             {"story": story, "is_saved": now_saved},
         )
 
-    message = f'"{story.title}" added to your library.' if now_saved else f'"{story.title}" removed from your library.'
+    message = (
+        f'"{story.title}" added to your library.'
+        if now_saved
+        else f'"{story.title}" removed from your library.'
+    )
     messages.success(request, message)
     return redirect("stories:detail", slug=slug)
 
@@ -110,7 +122,9 @@ def toggle_follow(request, username):
         )
 
     name = getattr(getattr(author, "author_profile", None), "name", author.username)
-    message = f"You are now following {name}." if now_following else f"You unfollowed {name}."
+    message = (
+        f"You are now following {name}." if now_following else f"You unfollowed {name}."
+    )
     messages.success(request, message)
     next_url = request.GET.get("next")
     if next_url and next_url.startswith("/"):

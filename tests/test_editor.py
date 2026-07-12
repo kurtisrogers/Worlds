@@ -11,7 +11,9 @@ from tests.factories import ChapterFactory
 @pytest.mark.django_db
 class TestEditor:
     def test_autosave_updates_chapter(self, client_logged_in, story):
-        chapter = ChapterFactory(story=story, number=1, title="Old", content="Old content")
+        chapter = ChapterFactory(
+            story=story, number=1, title="Old", content="Old content"
+        )
         url = reverse("editor:autosave", kwargs={"slug": story.slug, "number": 1})
         response = client_logged_in.post(
             url,
