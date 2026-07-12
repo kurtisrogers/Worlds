@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}My Stories{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+  <div class="flex items-center justify-between mb-8">
+    <h1 class="font-serif text-3xl font-semibold">My Stories</h1>
+    <a href="{% url 'stories:create' %}" class="btn-primary">New story</a>
+  </div>
+
+  {% if stories %}
+    <div class="space-y-4">
+      {% for story in stories %}
+        <div class="card p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="font-serif text-xl font-semibold">
+              <a href="{% url 'stories:manage' slug=story.slug %}" class="hover:text-worlds-600 transition">{{ story.title }}</a>
+            </h2>
+            <p class="text-sm text-stone-500 mt-1">
+              {{ story.chapter_count }} chapter{{ story.chapter_count|pluralize }} ·
+              <span class="capitalize">{{ story.get_status_display }}</span> ·
+              {{ story.get_content_source_display }}
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <a href="{% url 'stories:detail' slug=story.slug %}" class="btn-ghost text-sm">Preview</a>
+            <a href="{% url 'stories:manage' slug=story.slug %}" class="btn-secondary text-sm">Manage</a>
+            <a href="{% url 'editor:edit' slug=story.slug number=1 %}" class="btn-primary text-sm">Write</a>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card p-12 text-center">
+      <p class="text-stone-500 mb-4">You haven't started a story yet.</p>
+      <a href="{% url 'stories:create' %}" class="btn-primary">Create your first story</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

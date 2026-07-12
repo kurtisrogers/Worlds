@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}{{ chapter.title }} — {{ story.title }}{% endblock %}
+
+{% block content %}
+<article class="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+  <nav class="text-sm text-stone-500 mb-8">
+    <a href="{% url 'stories:detail' slug=story.slug %}" class="hover:text-worlds-600 transition">{{ story.title }}</a>
+    <span class="mx-2">/</span>
+    <span>Chapter {{ chapter.number }}</span>
+  </nav>
+
+  <header class="mb-10 text-center">
+    <p class="text-worlds-600 dark:text-worlds-400 text-sm font-medium mb-2">Chapter {{ chapter.number }}</p>
+    <h1 class="font-serif text-3xl md:text-4xl font-semibold">{{ chapter.title }}</h1>
+  </header>
+
+  {% if has_access %}
+    <div class="prose-reading mx-auto whitespace-pre-wrap">{{ chapter.content }}</div>
+
+    <nav class="flex justify-between mt-16 pt-8 border-t border-worlds-200 dark:border-stone-800">
+      {% if prev_chapter %}
+        <a href="{% url 'stories:chapter' slug=story.slug number=prev_chapter.number %}" class="chapter-nav-btn">
+          ← Ch. {{ prev_chapter.number }}
+        </a>
+      {% else %}
+        <span></span>
+      {% endif %}
+      {% if next_chapter %}
+        <a href="{% url 'stories:chapter' slug=story.slug number=next_chapter.number %}" class="chapter-nav-btn">
+          Ch. {{ next_chapter.number }} →
+        </a>
+      {% endif %}
+    </nav>
+  {% else %}
+    <div id="unlock-prompt" class="card p-8 text-center max-w-md mx-auto">
+      {% include "stories/partials/unlock_prompt.html" %}
+    </div>
+  {% endif %}
+</article>
+{% endblock %}

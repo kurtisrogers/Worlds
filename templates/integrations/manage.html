@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Integrations — {{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+  <p class="text-sm text-stone-500 mb-2"><a href="{% url 'stories:manage' slug=story.slug %}" class="hover:text-worlds-600">{{ story.title }}</a></p>
+  <h1 class="font-serif text-3xl font-semibold mb-8">Content integrations</h1>
+
+  <div class="space-y-8">
+    <section class="card p-6">
+      <h2 class="font-semibold text-lg mb-2">✍️ In-app editor</h2>
+      <p class="text-sm text-stone-600 dark:text-stone-400 mb-4">Write directly on Worlds with autosave and a distraction-free interface.</p>
+      <a href="{% url 'editor:edit' slug=story.slug number=1 %}" class="btn-primary text-sm">Open editor</a>
+    </section>
+
+    <section class="card p-6">
+      <h2 class="font-semibold text-lg mb-2">📄 Document upload</h2>
+      <p class="text-sm text-stone-600 dark:text-stone-400 mb-4">
+        Upload a .docx file. Chapters are detected by headings like "Chapter 1: Title".
+      </p>
+      <a href="{% url 'integrations:upload' slug=story.slug %}" class="btn-secondary text-sm">Upload document</a>
+      {% if uploads %}
+        <ul class="mt-4 text-sm text-stone-500 space-y-1">
+          {% for upload in uploads %}
+            <li>{{ upload.original_filename }} — {{ upload.get_status_display }} ({{ upload.chapters_created }} chapters)</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+
+    <section class="card p-6">
+      <h2 class="font-semibold text-lg mb-2">📊 Google Sheets</h2>
+      <p class="text-sm text-stone-600 dark:text-stone-400 mb-4">
+        Connect a spreadsheet with columns: Number, Title, Content. Sync to import chapters.
+      </p>
+      {% if connection %}
+        <p class="text-sm mb-2">Connected: <code class="text-xs bg-worlds-100 dark:bg-stone-800 px-2 py-1 rounded">{{ connection.spreadsheet_id }}</code></p>
+        {% if connection.last_synced_at %}
+          <p class="text-xs text-stone-500 mb-4">Last synced: {{ connection.last_synced_at }}</p>
+        {% endif %}
+        <div class="flex gap-2">
+          <a href="{% url 'integrations:sync_sheet' slug=story.slug %}" class="btn-primary text-sm">Sync now</a>
+          <a href="{% url 'integrations:google_sheet' slug=story.slug %}" class="btn-ghost text-sm">Edit connection</a>
+        </div>
+      {% else %}
+        <a href="{% url 'integrations:google_sheet' slug=story.slug %}" class="btn-secondary text-sm">Connect Google Sheet</a>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

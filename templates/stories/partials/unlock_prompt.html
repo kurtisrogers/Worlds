@@ -1,0 +1,41 @@
+{% load money %}
+<div class="space-y-4">
+  <div class="text-4xl mb-2">🔒</div>
+  <h2 class="font-serif text-xl font-semibold">This chapter is locked</h2>
+
+  {% if reason == 'login_required' %}
+    <p class="text-stone-600 dark:text-stone-400 text-sm">Sign in to continue reading.</p>
+    <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="btn-primary inline-block">Sign in</a>
+
+  {% elif reason == 'unlock' %}
+    <p class="text-stone-600 dark:text-stone-400 text-sm">
+      Unlock this chapter for <strong>{{ chapter.unlock_price_cents|cents_to_dollars }}</strong>
+    </p>
+    {% if user.is_authenticated %}
+      <a href="{% url 'stories:unlock_chapter' slug=story.slug number=chapter.number %}" class="btn-primary inline-block">Unlock chapter</a>
+    {% else %}
+      <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="btn-primary inline-block">Sign in to unlock</a>
+    {% endif %}
+
+  {% elif reason == 'subscribe' %}
+    <p class="text-stone-600 dark:text-stone-400 text-sm">
+      Subscribe to the <strong class="capitalize">{{ chapter.tier_required }}</strong> tier to read this chapter.
+    </p>
+    <a href="{% url 'stories:detail' slug=story.slug %}#support" class="btn-primary inline-block">View subscription tiers</a>
+
+  {% elif reason == 'unlock_or_subscribe' %}
+    <p class="text-stone-600 dark:text-stone-400 text-sm">
+      Unlock for <strong>{{ chapter.unlock_price_cents|cents_to_dollars }}</strong>
+      or subscribe to the <strong class="capitalize">{{ chapter.tier_required }}</strong> tier.
+    </p>
+    <div class="flex gap-3 justify-center">
+      {% if user.is_authenticated %}
+        <a href="{% url 'stories:unlock_chapter' slug=story.slug number=chapter.number %}" class="btn-primary">Unlock</a>
+      {% endif %}
+      <a href="{% url 'stories:detail' slug=story.slug %}#support" class="btn-secondary">Subscribe</a>
+    </div>
+
+  {% else %}
+    <p class="text-stone-600 dark:text-stone-400 text-sm">This chapter is not yet available.</p>
+  {% endif %}
+</div>

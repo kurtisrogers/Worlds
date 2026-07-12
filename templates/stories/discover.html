@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Discover{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-8">Discover stories</h1>
+
+  <form method="get" class="mb-8">
+    <input type="search" name="q" value="{{ query }}" placeholder="Search titles and synopses..."
+           class="form-input max-w-md">
+  </form>
+
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for story in stories %}
+      <a href="{% url 'stories:detail' slug=story.slug %}" class="card p-6 group">
+        <h2 class="font-serif text-xl font-semibold group-hover:text-worlds-600 transition">{{ story.title }}</h2>
+        <p class="text-sm text-stone-500 mt-1">by {{ story.author.username }}</p>
+        <p class="text-sm text-stone-600 dark:text-stone-400 mt-3 line-clamp-3">{{ story.synopsis }}</p>
+      </a>
+    {% empty %}
+      <p class="text-stone-500 col-span-full">No stories found.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_create %}New story{% else %}Edit {{ story.title }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-8">{% if is_create %}Start a new story{% else %}Edit story{% endif %}</h1>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-6">
+    {% csrf_token %}
+    {% for field in form %}
+      <div>
+        <label class="block text-sm font-medium mb-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+          <p class="text-red-600 text-sm mt-1">{{ field.errors.0 }}</p>
+        {% endif %}
+        {% if field.help_text %}
+          <p class="text-xs text-stone-500 mt-1">{{ field.help_text }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn-primary">{% if is_create %}Create story{% else %}Save changes{% endif %}</button>
+  </form>
+</div>
+{% endblock %}

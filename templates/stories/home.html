@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Discover emerging authors{% endblock %}
+
+{% block content %}
+<section class="hero-gradient">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-28 text-center">
+    <p class="text-worlds-600 dark:text-worlds-400 font-medium text-sm uppercase tracking-widest mb-4">Reader-funded publishing</p>
+    <h1 class="font-serif text-4xl md:text-6xl font-semibold text-stone-900 dark:text-stone-50 mb-6 leading-tight">
+      Stories worth telling,<br>funded by readers who care
+    </h1>
+    <p class="text-lg text-stone-600 dark:text-stone-400 max-w-2xl mx-auto mb-10">
+      Discover chapters from up-and-coming authors. Subscribe to support their journey,
+      or unlock individual releases. No algorithms — just great writing.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="{% url 'stories:discover' %}" class="btn-primary text-base px-8 py-3">Explore stories</a>
+      <a href="{% url 'accounts:register' %}" class="btn-secondary text-base px-8 py-3">Become an author</a>
+    </div>
+  </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+  <div class="flex items-center justify-between mb-8">
+    <h2 class="font-serif text-2xl font-semibold">Now publishing</h2>
+    <a href="{% url 'stories:discover' %}" class="text-worlds-600 dark:text-worlds-400 text-sm hover:underline">View all →</a>
+  </div>
+
+  {% if stories %}
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for story in stories %}
+        <a href="{% url 'stories:detail' slug=story.slug %}" class="card p-6 group">
+          {% if story.cover_image %}
+            <img src="{{ story.cover_image.url }}" alt="{{ story.title }}" class="w-full h-40 object-cover rounded-xl mb-4">
+          {% else %}
+            <div class="w-full h-40 rounded-xl bg-gradient-to-br from-worlds-200 to-worlds-300 dark:from-stone-700 dark:to-stone-800 mb-4 flex items-center justify-center">
+              <span class="font-serif text-3xl text-worlds-600 dark:text-worlds-400">{{ story.title|first }}</span>
+            </div>
+          {% endif %}
+          <h3 class="font-serif text-xl font-semibold group-hover:text-worlds-600 dark:group-hover:text-worlds-400 transition">{{ story.title }}</h3>
+          <p class="text-sm text-stone-500 dark:text-stone-400 mt-1">by {{ story.author.username }}</p>
+          <p class="text-sm text-stone-600 dark:text-stone-400 mt-3 line-clamp-2">{{ story.synopsis|truncatewords:20 }}</p>
+          <p class="text-xs text-worlds-600 dark:text-worlds-400 mt-4">{{ story.chapter_count }} chapter{{ story.chapter_count|pluralize }}</p>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card p-12 text-center">
+      <p class="text-stone-500 dark:text-stone-400 mb-4">No stories published yet. Be the first!</p>
+      <a href="{% url 'accounts:register' %}" class="btn-primary">Start your story</a>
+    </div>
+  {% endif %}
+</section>
+
+<section class="bg-worlds-100/50 dark:bg-stone-900/50 border-y border-worlds-200/60 dark:border-stone-800">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+    <h2 class="font-serif text-2xl font-semibold text-center mb-12">How Worlds works</h2>
+    <div class="grid md:grid-cols-3 gap-8">
+      <div class="text-center">
+        <div class="w-12 h-12 rounded-full bg-worlds-200 dark:bg-stone-700 flex items-center justify-center mx-auto mb-4 text-xl">✍️</div>
+        <h3 class="font-semibold mb-2">Authors write</h3>
+        <p class="text-sm text-stone-600 dark:text-stone-400">Use our editor, upload documents, or sync from Google Sheets.</p>
+      </div>
+      <div class="text-center">
+        <div class="w-12 h-12 rounded-full bg-worlds-200 dark:bg-stone-700 flex items-center justify-center mx-auto mb-4 text-xl">📖</div>
+        <h3 class="font-semibold mb-2">Readers discover</h3>
+        <p class="text-sm text-stone-600 dark:text-stone-400">Browse serial fiction from emerging voices — no algorithmic feeds.</p>
+      </div>
+      <div class="text-center">
+        <div class="w-12 h-12 rounded-full bg-worlds-200 dark:bg-stone-700 flex items-center justify-center mx-auto mb-4 text-xl">💛</div>
+        <h3 class="font-semibold mb-2">Direct support</h3>
+        <p class="text-sm text-stone-600 dark:text-stone-400">Subscribe or unlock chapters. {{ PLATFORM_FEE_PERCENT }}% platform fee — the rest goes to the author.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

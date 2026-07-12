@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load money %}
+
+{% block title %}Payment history{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+  <h1 class="font-serif text-3xl font-semibold mb-8">Payment history</h1>
+
+  {% if transactions %}
+    <div class="space-y-3">
+      {% for tx in transactions %}
+        <div class="card p-4 flex justify-between items-center">
+          <div>
+            <p class="font-medium capitalize">{{ tx.get_transaction_type_display }}</p>
+            <p class="text-xs text-stone-500">{{ tx.created_at|date:"M j, Y g:i A" }}</p>
+          </div>
+          <div class="text-right">
+            <p class="font-serif text-lg">{{ tx.amount_cents|cents_to_dollars }}</p>
+            <p class="text-xs text-stone-500 capitalize">{{ tx.get_status_display }}</p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-stone-500">No transactions yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Manage {{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="font-serif text-3xl font-semibold">{{ story.title }}</h1>
+      <p class="text-sm text-stone-500 mt-1 capitalize">{{ story.get_status_display }} · {{ story.get_content_source_display }}</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <a href="{% url 'stories:edit' slug=story.slug %}" class="btn-secondary text-sm">Edit details</a>
+      <a href="{% url 'integrations:manage' slug=story.slug %}" class="btn-secondary text-sm">Integrations</a>
+      <a href="{% url 'stories:chapter_create' slug=story.slug %}" class="btn-primary text-sm">Add chapter</a>
+    </div>
+  </div>
+
+  <section class="mb-12">
+    <h2 class="font-semibold mb-4">Chapters</h2>
+    <div class="space-y-2" id="chapter-list">
+      {% for chapter in chapters %}
+        {% include "stories/partials/chapter_row.html" %}
+      {% empty %}
+        <p class="text-stone-500">No chapters yet. <a href="{% url 'stories:chapter_create' slug=story.slug %}" class="text-worlds-600 hover:underline">Add one</a>.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="font-semibold mb-4">Subscription tiers</h2>
+    <div class="grid sm:grid-cols-3 gap-4">
+      {% for tier in tiers %}
+        <div class="card p-4 border-t-4 tier-{{ tier.name }}">
+          <h3 class="font-medium capitalize">{{ tier.get_name_display }}</h3>
+          <p class="text-lg font-serif">{{ tier.price_dollars }}/mo</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_create %}New chapter{% else %}Edit chapter{% endif %} — {{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+  <p class="text-sm text-stone-500 mb-2"><a href="{% url 'stories:manage' slug=story.slug %}" class="hover:text-worlds-600">{{ story.title }}</a></p>
+  <h1 class="font-serif text-3xl font-semibold mb-8">{% if is_create %}New chapter{% else %}Chapter {{ chapter.number }}{% endif %}</h1>
+
+  <form method="post" class="space-y-6">
+    {% csrf_token %}
+    {% for field in form %}
+      <div>
+        <label class="block text-sm font-medium mb-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+          <p class="text-red-600 text-sm mt-1">{{ field.errors.0 }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">Save chapter</button>
+      {% if not is_create %}
+        <a href="{% url 'editor:edit' slug=story.slug number=chapter.number %}" class="btn-secondary">Open in editor</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
