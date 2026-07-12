@@ -37,7 +37,10 @@ def create_chapter_checkout_session(
     amount = chapter.unlock_price_cents
     fee, payout = calculate_fees(amount)
     success_url = request.build_absolute_uri(
-        reverse("stories:chapter", kwargs={"slug": chapter.story.slug, "number": chapter.number})
+        reverse(
+            "stories:chapter",
+            kwargs={"slug": chapter.story.slug, "number": chapter.number},
+        )
     )
     cancel_url = request.build_absolute_uri(chapter.get_absolute_url())
 
@@ -106,7 +109,8 @@ def create_subscription_checkout_session(
                     "recurring": {"interval": "month"},
                     "product_data": {
                         "name": f"{tier.story.title} — {tier.get_name_display()} Tier",
-                        "description": tier.description or f"Subscribe to {tier.story.title}",
+                        "description": tier.description
+                        or f"Subscribe to {tier.story.title}",
                     },
                 },
                 "quantity": 1,
@@ -146,9 +150,7 @@ def handle_checkout_completed(session: dict[str, Any]) -> None:
     session_type = metadata.get("type")
     user_id = metadata.get("user_id")
 
-    Transaction.objects.filter(
-        stripe_checkout_session_id=session["id"]
-    ).update(
+    Transaction.objects.filter(stripe_checkout_session_id=session["id"]).update(
         status=TransactionStatus.COMPLETED,
         stripe_payment_intent_id=session.get("payment_intent", ""),
     )

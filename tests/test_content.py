@@ -1,7 +1,5 @@
 """Tests for content sanitization and HTML rendering."""
 
-import pytest
-
 from stories.content import render_chapter_content, sanitize_html
 from stories.models import ContentFormat
 from tests.factories import ChapterFactory
@@ -19,7 +17,9 @@ class TestContentSanitization:
         assert "<strong>" in sanitize_html(html)
 
     def test_render_plain_content(self, story):
-        chapter = ChapterFactory(story=story, content="Plain text here.", content_format=ContentFormat.PLAIN)
+        chapter = ChapterFactory(
+            story=story, content="Plain text here.", content_format=ContentFormat.PLAIN
+        )
         assert render_chapter_content(chapter) == "Plain text here."
 
     def test_render_html_content(self, story):

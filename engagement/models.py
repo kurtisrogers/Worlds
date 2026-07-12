@@ -57,4 +57,6 @@ class ChapterReaction(models.Model):
         unique_together = [("chapter", "user")]
 
     def __str__(self) -> str:
-        return f"{self.user.username} → {self.reaction_type} on ch.{self.chapter.number}"
+        return (
+            f"{self.user.username} → {self.reaction_type} on ch.{self.chapter.number}"
+        )

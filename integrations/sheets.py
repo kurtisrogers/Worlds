@@ -65,7 +65,9 @@ def sync_from_google_sheets(connection: GoogleSheetConnection) -> int:
     author = connection.story.author
     creds = get_credentials(author)
     if not creds:
-        logger.warning("No Google credentials for author of connection %s", connection.pk)
+        logger.warning(
+            "No Google credentials for author of connection %s", connection.pk
+        )
         return 0
 
     try:

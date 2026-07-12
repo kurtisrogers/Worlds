@@ -12,7 +12,9 @@ from stories.models import Chapter
 def _get_reaction_counts(chapter: Chapter) -> dict[str, int]:
     counts: dict[str, int] = {}
     for reaction_type, _ in ReactionType.choices:
-        counts[reaction_type] = chapter.reactions.filter(reaction_type=reaction_type).count()
+        counts[reaction_type] = chapter.reactions.filter(
+            reaction_type=reaction_type
+        ).count()
     return counts
 
 
@@ -62,7 +64,9 @@ def toggle_reaction(request, slug, number):
     if reaction_type not in dict(ReactionType.choices):
         return HttpResponse("Invalid reaction", status=400)
 
-    existing = ChapterReaction.objects.filter(chapter=chapter, user=request.user).first()
+    existing = ChapterReaction.objects.filter(
+        chapter=chapter, user=request.user
+    ).first()
     if existing:
         if existing.reaction_type == reaction_type:
             existing.delete()

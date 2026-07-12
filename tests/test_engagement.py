@@ -16,7 +16,9 @@ class TestEngagement:
         )
         response = client.post(url, {"body": "Loved this chapter!"})
         assert response.status_code == 200
-        assert ChapterComment.objects.filter(chapter=published_chapter, user=reader).exists()
+        assert ChapterComment.objects.filter(
+            chapter=published_chapter, user=reader
+        ).exists()
 
     def test_toggle_reaction(self, client, reader, story, published_chapter):
         client.login(username="reader1", password="testpass123")

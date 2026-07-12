@@ -55,7 +55,9 @@ def google_auth_callback(request):
         save_credentials(request.user, creds)
         messages.success(request, "Google account connected successfully.")
     except Exception:
-        messages.error(request, "Failed to connect Google account. Check your OAuth settings.")
+        messages.error(
+            request, "Failed to connect Google account. Check your OAuth settings."
+        )
 
     return redirect(next_url)
 
@@ -129,7 +131,9 @@ def upload_document(request, slug):
         if count:
             story.content_source = ContentSource.UPLOAD
             story.save(update_fields=["content_source"])
-            messages.success(request, f"Imported {count} chapters from {uploaded_file.name}.")
+            messages.success(
+                request, f"Imported {count} chapters from {uploaded_file.name}."
+            )
         else:
             messages.error(request, "Failed to parse document. Check the file format.")
         return redirect("integrations:manage", slug=slug)

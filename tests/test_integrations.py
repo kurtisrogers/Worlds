@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
 from docx import Document
 
 from integrations.documents import parse_docx_chapters

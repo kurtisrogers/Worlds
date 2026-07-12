@@ -12,5 +12,9 @@ urlpatterns = [
     path("users/<str:username>/", staff_views.staff_user_detail, name="user_detail"),
     path("users/<str:username>/role/", staff_views.staff_set_role, name="set_role"),
     path("comments/", staff_views.staff_comments, name="comments"),
-    path("comments/<int:comment_id>/delete/", staff_views.staff_delete_comment, name="delete_comment"),
+    path(
+        "comments/<int:comment_id>/delete/",
+        staff_views.staff_delete_comment,
+        name="delete_comment",
+    ),
 ]

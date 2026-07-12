@@ -7,7 +7,7 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from accounts.models import PlatformRole, UserAccount
-from accounts.roles import role_required, sync_django_staff_flags, user_has_role
+from accounts.roles import role_required, sync_django_staff_flags
 from engagement.models import ChapterComment
 from payments.models import Transaction
 from stories.models import ReaderSubscription, Story

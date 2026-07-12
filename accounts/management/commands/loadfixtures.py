@@ -32,10 +32,8 @@ from stories.models import (
     Chapter,
     ChapterUnlock,
     ContentFormat,
-    ContentSource,
     ReaderSubscription,
     Story,
-    StoryStatus,
 )
 
 
@@ -54,7 +52,9 @@ def _generate_cover(title: str, color: str) -> ContentFile:
 
     letter = title[0].upper() if title else "W"
     try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", 200)
+        font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", 200
+        )
     except OSError:
         font = ImageFont.load_default()
 
@@ -70,7 +70,9 @@ def _generate_cover(title: str, color: str) -> ContentFile:
 
     # Title at bottom
     try:
-        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36)
+        title_font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36
+        )
     except OSError:
         title_font = font
 
@@ -91,7 +93,9 @@ def _generate_cover(title: str, color: str) -> ContentFile:
     for line in lines[:3]:
         bbox = draw.textbbox((0, 0), line, font=title_font)
         line_w = bbox[2] - bbox[0]
-        draw.text(((width - line_w) / 2, y_offset), line, fill="#f0e6d8", font=title_font)
+        draw.text(
+            ((width - line_w) / 2, y_offset), line, fill="#f0e6d8", font=title_font
+        )
         y_offset += 40
 
     buffer = io.BytesIO()
@@ -209,7 +213,9 @@ class Command(BaseCommand):
 
         return users
 
-    def _create_stories(self, users: dict[str, User], skip_covers: bool) -> dict[str, Story]:
+    def _create_stories(
+        self, users: dict[str, User], skip_covers: bool
+    ) -> dict[str, Story]:
         stories: dict[str, Story] = {}
 
         for story_data in STORIES:
@@ -233,7 +239,9 @@ class Command(BaseCommand):
 
             for ch in story_data["chapters"]:
                 content_format = (
-                    ContentFormat.HTML if ch.get("format") == "html" else ContentFormat.PLAIN
+                    ContentFormat.HTML
+                    if ch.get("format") == "html"
+                    else ContentFormat.PLAIN
                 )
                 Chapter.objects.update_or_create(
                     story=story,
@@ -352,8 +360,14 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(self.style.WARNING("Authors (password: demo1234):"))
         for author in AUTHORS:
-            onboarded = "✓ payouts" if author["stripe_connect_onboarded"] else "○ payouts pending"
-            self.stdout.write(f"  {author['username']:20} {author['display_name']:22} {onboarded}")
+            onboarded = (
+                "✓ payouts"
+                if author["stripe_connect_onboarded"]
+                else "○ payouts pending"
+            )
+            self.stdout.write(
+                f"  {author['username']:20} {author['display_name']:22} {onboarded}"
+            )
         self.stdout.write("")
         self.stdout.write(self.style.WARNING("Readers (password: demo1234):"))
         for reader in READERS:
@@ -364,4 +378,6 @@ class Command(BaseCommand):
             self.stdout.write(f"  {legacy} → maps to {canonical}")
         self.stdout.write("")
         self.stdout.write("  Browse: http://localhost:8000/discover/")
-        self.stdout.write("  Library: http://localhost:8000/library/ (login as alex_reader)")
+        self.stdout.write(
+            "  Library: http://localhost:8000/library/ (login as alex_reader)"
+        )

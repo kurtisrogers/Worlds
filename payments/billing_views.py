@@ -5,7 +5,7 @@ from django.db.models import Sum
 from django.shortcuts import redirect, render
 
 from payments.billing import create_billing_portal_session, get_billing_summary
-from payments.models import Transaction, TransactionStatus
+from payments.models import Transaction
 from stories.models import ChapterUnlock, ReaderSubscription
 
 
@@ -30,9 +30,9 @@ def billing_overview(request):
     has_author_stories = request.user.stories.exists()
     if has_author_stories:
         author_unlock_revenue = (
-            ChapterUnlock.objects.filter(
-                chapter__story__author=request.user
-            ).aggregate(total=Sum("amount_cents"))["total"]
+            ChapterUnlock.objects.filter(chapter__story__author=request.user).aggregate(
+                total=Sum("amount_cents")
+            )["total"]
             or 0
         )
 

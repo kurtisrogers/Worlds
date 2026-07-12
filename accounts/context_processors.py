@@ -1,7 +1,7 @@
 """Template context for user roles."""
 
-from accounts.roles import get_user_account, user_has_role
 from accounts.models import PlatformRole
+from accounts.roles import get_user_account, user_has_role
 
 
 def user_roles(request):

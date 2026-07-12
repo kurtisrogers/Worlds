@@ -28,8 +28,9 @@ class TestLoadFixtures:
         assert User.objects.filter(username="demo_reader").exists()
 
     def test_loadfixtures_creates_staff_users(self):
-        from accounts.models import PlatformRole, UserAccount
         from django.contrib.auth.models import User
+
+        from accounts.models import PlatformRole, UserAccount
 
         call_command("loadfixtures", flush=True, no_covers=True)
         assert User.objects.filter(username="worlds_support").exists()

@@ -12,11 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from accounts.models import AuthorProfile
-from payments.connect import (
-    create_account_link,
-    refresh_connect_status,
-)
-from payments.models import Transaction
+from payments.connect import create_account_link, refresh_connect_status
 from payments.services import handle_checkout_completed
 
 logger = logging.getLogger(__name__)
@@ -52,9 +48,13 @@ def connect_onboard(request):
 def connect_return(request):
     onboarded = refresh_connect_status(request.user)
     if onboarded:
-        messages.success(request, "Stripe Connect setup complete! You can now receive payouts.")
+        messages.success(
+            request, "Stripe Connect setup complete! You can now receive payouts."
+        )
     else:
-        messages.info(request, "Stripe setup in progress. Complete any remaining steps.")
+        messages.info(
+            request, "Stripe setup in progress. Complete any remaining steps."
+        )
     return redirect("payments:connect_dashboard")
 
 

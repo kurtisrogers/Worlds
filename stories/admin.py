@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from stories.models import Chapter, ChapterUnlock, ReaderSubscription, Story, SubscriptionTier
+from stories.models import (
+    Chapter,
+    ChapterUnlock,
+    ReaderSubscription,
+    Story,
+    SubscriptionTier,
+)
 
 
 class ChapterInline(admin.TabularInline):

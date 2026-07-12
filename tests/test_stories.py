@@ -4,7 +4,7 @@ import pytest
 from django.urls import reverse
 
 from stories.access import can_read_chapter, get_access_reason
-from stories.models import Chapter, ReaderSubscription, SubscriptionTier, TierName
+from stories.models import ReaderSubscription, SubscriptionTier, TierName
 from tests.factories import ChapterFactory
 
 

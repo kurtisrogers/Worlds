@@ -58,4 +58,6 @@ def autosave(request, slug, number):
             '<span class="text-emerald-400 text-sm">Saved</span>',
             headers={"HX-Trigger": "chapterSaved"},
         )
-    return HttpResponse(json.dumps({"status": "saved"}), content_type="application/json")
+    return HttpResponse(
+        json.dumps({"status": "saved"}), content_type="application/json"
+    )

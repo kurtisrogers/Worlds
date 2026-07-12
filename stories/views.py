@@ -7,7 +7,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from engagement.views import chapter_engagement_context
 from library.services import get_user_subscription, is_following_author, is_story_saved
-from payments.services import create_chapter_checkout_session, create_subscription_checkout_session
+from payments.services import (
+    create_chapter_checkout_session,
+    create_subscription_checkout_session,
+)
 from stories.access import can_read_chapter, get_access_reason
 from stories.content import render_chapter_content
 from stories.forms import ChapterForm, StoryForm
@@ -15,9 +18,11 @@ from stories.models import Chapter, Story, StoryStatus
 
 
 def home(request):
-    stories = Story.objects.filter(
-        status__in=[StoryStatus.PUBLISHING, StoryStatus.PUBLISHED]
-    ).select_related("author", "author__author_profile").prefetch_related("chapters")[:12]
+    stories = (
+        Story.objects.filter(status__in=[StoryStatus.PUBLISHING, StoryStatus.PUBLISHED])
+        .select_related("author", "author__author_profile")
+        .prefetch_related("chapters")[:12]
+    )
     return render(request, "stories/home.html", {"stories": stories, "empty_dict": {}})
 
 
@@ -61,8 +66,16 @@ def chapter_read(request, slug, number):
     has_access = can_read_chapter(request.user, chapter)
     reason = get_access_reason(request.user, chapter)
 
-    prev_chapter = story.chapters.filter(number__lt=number, is_published=True).order_by("-number").first()
-    next_chapter = story.chapters.filter(number__gt=number, is_published=True).order_by("number").first()
+    prev_chapter = (
+        story.chapters.filter(number__lt=number, is_published=True)
+        .order_by("-number")
+        .first()
+    )
+    next_chapter = (
+        story.chapters.filter(number__gt=number, is_published=True)
+        .order_by("number")
+        .first()
+    )
 
     if request.htmx and not has_access:
         return render(
@@ -104,7 +117,9 @@ def story_create(request):
             from payments.services import ensure_story_tiers
 
             ensure_story_tiers(story)
-            messages.success(request, f'"{story.title}" created! Add your first chapter.')
+            messages.success(
+                request, f'"{story.title}" created! Add your first chapter.'
+            )
             return redirect("stories:manage", slug=story.slug)
     else:
         form = StoryForm()
@@ -152,7 +167,9 @@ def story_edit(request, slug):
 @login_required
 def chapter_create(request, slug):
     story = get_object_or_404(Story, slug=slug, author=request.user)
-    next_number = (story.chapters.order_by("-number").values_list("number", flat=True).first() or 0) + 1
+    next_number = (
+        story.chapters.order_by("-number").values_list("number", flat=True).first() or 0
+    ) + 1
 
     if request.method == "POST":
         form = ChapterForm(request.POST)
@@ -235,4 +252,8 @@ def discover(request):
         stories = stories.filter(
             Q(title__icontains=query) | Q(synopsis__icontains=query)
         )
-    return render(request, "stories/discover.html", {"stories": stories, "query": query, "empty_dict": {}})
+    return render(
+        request,
+        "stories/discover.html",
+        {"stories": stories, "query": query, "empty_dict": {}},
+    )

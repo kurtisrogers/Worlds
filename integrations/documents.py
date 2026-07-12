@@ -10,7 +10,6 @@ from docx import Document
 
 from integrations.models import DocumentUpload
 from integrations.sheets import sync_chapters_from_rows
-from stories.models import Chapter
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,9 @@ def parse_docx_chapters(file_path: str) -> list[dict]:
         chapters.append(current)
 
     if not chapters:
-        full_text = "\n\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
+        full_text = "\n\n".join(
+            p.text.strip() for p in doc.paragraphs if p.text.strip()
+        )
         if full_text:
             chapters.append({"number": 1, "title": "Chapter 1", "content": full_text})
 
