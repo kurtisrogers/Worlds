@@ -1,96 +1,71 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Editor — {{ chapter.title }}{% endblock %}
+{% block document_title %}{{ chapter.title }} — {{ story.title }}{% endblock %}
+{% block site_header %}{% endblock %}
+{% block site_footer %}{% endblock %}
+{% block main_class %}editor-main{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'editor/editor.css' %}">
+{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex flex-col" x-data="chapterEditor()" x-init="init()">
-  <header class="border-b border-worlds-200 dark:border-stone-800 bg-white/80 dark:bg-stone-900/80 backdrop-blur sticky top-16 z-40">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <a href="{% url 'stories:manage' slug=story.slug %}" class="text-stone-500 hover:text-worlds-600 text-sm">← {{ story.title }}</a>
-        <select @change="window.location.href = `/editor/{{ story.slug }}/${$event.target.value}/`"
-                class="form-select text-sm py-1.5 w-auto">
-          {% for ch in chapters %}
-            <option value="{{ ch.number }}" {% if ch.number == chapter.number %}selected{% endif %}>
-              Ch. {{ ch.number }}: {{ ch.title }}
-            </option>
-          {% endfor %}
-        </select>
+<div
+  id="chapter-editor"
+  class="editor-shell"
+  data-label-saving="{{ saving_label }}"
+  data-label-saved="{{ saved_label }}"
+  data-label-failed="{{ failed_label }}"
+>
+  <div class="editor-column">
+    <a id="back-to-book" class="editor-back" href="{% url 'stories:manage' slug=story.slug %}">Back to {{ story.title }}</a>
+    <form
+      id="chapter-form"
+      method="post"
+      action="{% url 'editor:autosave' slug=story.slug number=chapter.number %}"
+      hx-post="{% url 'editor:autosave' slug=story.slug number=chapter.number %}"
+      hx-trigger="input delay:2s"
+      hx-swap="none"
+      hx-sync="this:replace"
+      onsubmit="event.preventDefault();"
+      oninput="worldsEditor.markSaving(document)"
+    >
+      {% csrf_token %}
+      <div class="editor-strip">
+        <input
+          id="chapter-title"
+          class="editor-title"
+          name="title"
+          type="text"
+          value="{{ chapter.title }}"
+          aria-label="Chapter title"
+          autocomplete="off"
+          onkeydown="if (event.key === 'Enter') event.preventDefault();"
+        >
+        <span
+          id="save-status"
+          class="editor-status"
+          role="status"
+          aria-live="polite"
+          tabindex="0"
+          data-status="saved"
+        >{{ saved_label }}</span>
+        <button id="review-control" class="editor-review" type="button">Review</button>
       </div>
-      <div class="flex items-center gap-3">
-        <span id="save-status" class="text-sm text-stone-400"></span>
-        <button type="button" @click="save()" class="btn-primary text-sm">Save</button>
-      </div>
-    </div>
-  </header>
-
-  <div class="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-8">
-    <input type="text" x-model="title" @input.debounce.1000ms="save()"
-           class="w-full font-serif text-3xl font-semibold bg-transparent border-none outline-none mb-6 placeholder-stone-300"
-           placeholder="Chapter title">
-
-    <div class="flex gap-1 mb-4 border-b border-worlds-200 dark:border-stone-800 pb-3">
-      <button type="button" @click="wrapSelection('**', '**')" class="px-3 py-1.5 rounded-lg text-sm hover:bg-worlds-100 dark:hover:bg-stone-800"><strong>B</strong></button>
-      <button type="button" @click="wrapSelection('*', '*')" class="px-3 py-1.5 rounded-lg text-sm hover:bg-worlds-100 dark:hover:bg-stone-800"><em>I</em></button>
-      <button type="button" @click="insertAtCursor('\n\n---\n\n')" class="px-3 py-1.5 rounded-lg text-sm hover:bg-worlds-100 dark:hover:bg-stone-800">—</button>
-    </div>
-
-    <textarea x-model="content" @input.debounce.2000ms="save()" x-ref="editor"
-              class="w-full min-h-[70vh] font-serif text-lg leading-relaxed bg-transparent border-none outline-none resize-none text-stone-800 dark:text-stone-200"
-              placeholder="Start writing your chapter..."></textarea>
+      <textarea
+        id="manuscript"
+        class="manuscript"
+        name="content"
+        wrap="soft"
+        aria-label="Manuscript"
+        autofocus
+      >{{ chapter.content }}</textarea>
+    </form>
   </div>
 </div>
+{% endblock %}
 
-{{ chapter.title|json_script:"chapter-title" }}
-{{ chapter.content|json_script:"chapter-content" }}
-
-<script>
-  function chapterEditor() {
-    return {
-      title: '',
-      content: '',
-
-      init() {
-        this.title = JSON.parse(document.getElementById('chapter-title').textContent);
-        this.content = JSON.parse(document.getElementById('chapter-content').textContent);
-      },
-
-      async save() {
-        const status = document.getElementById('save-status');
-        status.textContent = 'Saving...';
-        try {
-          const resp = await fetch('{% url "editor:autosave" slug=story.slug number=chapter.number %}', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': '{{ csrf_token }}',
-            },
-            body: JSON.stringify({ title: this.title, content: this.content }),
-          });
-          status.textContent = resp.ok ? 'Saved' : 'Error saving';
-          if (resp.ok) setTimeout(() => { status.textContent = ''; }, 2000);
-        } catch (e) {
-          status.textContent = 'Error saving';
-        }
-      },
-
-      wrapSelection(before, after) {
-        const el = this.$refs.editor;
-        const start = el.selectionStart;
-        const end = el.selectionEnd;
-        const selected = this.content.substring(start, end);
-        this.content = this.content.substring(0, start) + before + selected + after + this.content.substring(end);
-        this.$nextTick(() => { el.focus(); el.setSelectionRange(start + before.length, end + before.length); });
-        this.save();
-      },
-
-      insertAtCursor(text) {
-        const el = this.$refs.editor;
-        const pos = el.selectionStart;
-        this.content = this.content.substring(0, pos) + text + this.content.substring(pos);
-        this.save();
-      },
-    };
-  }
-</script>
+{% block extra_js %}
+<script src="{% static 'editor/autosave.js' %}"></script>
 {% endblock %}

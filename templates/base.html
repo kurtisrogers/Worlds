@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}{{ PLATFORM_NAME }}{% endblock %} — Fund the next generation of creatives</title>
+  <title>{% block document_title %}{% block title %}{{ PLATFORM_NAME }}{% endblock %} — Fund the next generation of creatives{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -42,6 +42,7 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body class="min-h-screen bg-worlds-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans antialiased">
+  {% block site_header %}
   <nav class="border-b border-worlds-200/60 dark:border-stone-800 bg-white/80 dark:bg-stone-900/80 backdrop-blur-md sticky top-0 z-50">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
       <a href="{% url 'stories:home' %}" class="flex items-center gap-2 group">
@@ -75,6 +76,7 @@
       </div>
     </div>
   </nav>
+  {% endblock %}
 
   {% if messages %}
     <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-4 space-y-2">
@@ -90,6 +92,7 @@
     {% block content %}{% endblock %}
   </main>
 
+  {% block site_footer %}
   <footer class="border-t border-worlds-200/60 dark:border-stone-800 mt-20">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-12">
       <div class="flex flex-col md:flex-row justify-between gap-8">
@@ -115,6 +118,7 @@
       <p class="text-xs text-stone-400 mt-8">&copy; 2026 Worlds. Built for the next generation of creatives.</p>
     </div>
   </footer>
+  {% endblock %}
 
   {% block extra_js %}{% endblock %}
 </body>
