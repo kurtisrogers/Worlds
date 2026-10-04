@@ -19,17 +19,22 @@
   data-label-failed="{{ failed_label }}"
 >
   <div class="editor-column">
-    <a id="back-to-book" class="editor-back" href="{% url 'stories:manage' slug=story.slug %}">Back to {{ story.title }}</a>
+    <div class="editor-tools">
+      <a id="back-to-book" class="editor-back" href="{% url 'stories:manage' slug=story.slug %}">Back to {{ story.title }}</a>
+      <select id="chapter-menu" class="editor-chapters" data-current="{% url 'editor:edit' slug=story.slug number=chapter.number %}">
+        {% for ch in chapters %}
+          <option value="{% url 'editor:edit' slug=story.slug number=ch.number %}" {% if ch.number == chapter.number %}selected{% endif %}>Ch. {{ ch.number }}: {{ ch.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <form
       id="chapter-form"
       method="post"
       action="{% url 'editor:autosave' slug=story.slug number=chapter.number %}"
       hx-post="{% url 'editor:autosave' slug=story.slug number=chapter.number %}"
-      hx-trigger="input delay:2s"
+      hx-trigger="flush"
       hx-swap="none"
-      hx-sync="this:replace"
       onsubmit="event.preventDefault();"
-      oninput="worldsEditor.markSaving(document)"
     >
       {% csrf_token %}
       <div class="editor-strip">

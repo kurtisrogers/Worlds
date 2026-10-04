@@ -142,6 +142,8 @@ class TestEditor:
             and "editor-strip" in node["parent"]["attrs"].get("class", "")
         ]
         assert strip_children == ["chapter-title", "save-status"]
+        assert 'id="chapter-menu"' in html
+        assert 'hx-trigger="flush"' in html
 
     def test_visible_status_matches_autosave_result(self, client_logged_in, story):
         ChapterFactory(story=story, number=1, title="Dawn", content=PARAGRAPH)

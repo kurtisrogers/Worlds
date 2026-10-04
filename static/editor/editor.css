@@ -19,16 +19,41 @@
   font-size: 1.125rem;
 }
 
+.editor-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 0.75rem;
+}
+
 .editor-back {
   display: inline-block;
   max-width: 100%;
-  margin: 0 0 0.75rem;
+  margin: 0;
   color: #78716c;
   font-family: "DM Sans", system-ui, sans-serif;
   font-size: 0.8125rem;
   line-height: 1.4;
   text-decoration: none;
   overflow-wrap: anywhere;
+}
+
+.editor-chapters {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #78716c;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
 }
 
 .editor-strip {
@@ -94,6 +119,7 @@
 }
 
 .editor-back:focus,
+.editor-chapters:focus,
 .editor-title:focus,
 .editor-status:focus,
 .manuscript:focus {
@@ -106,6 +132,7 @@
 }
 
 .dark .editor-back,
+.dark .editor-chapters,
 .dark .editor-status {
   color: #a8a29e;
 }

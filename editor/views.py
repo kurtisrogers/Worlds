@@ -52,6 +52,7 @@ def editor(request, slug, number):
         {
             "story": story,
             "chapter": chapter,
+            "chapters": story.chapters.all(),
             "saving_label": SAVING,
             "saved_label": SAVED,
             "failed_label": FAILED,

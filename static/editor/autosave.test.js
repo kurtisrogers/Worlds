@@ -1,5 +1,19 @@
 const assert = require("assert");
-const { applyAutosaveResult, finishAutosave, showSaveStatus } = require("./autosave.js");
+const {
+  applyAutosaveResult,
+  decideLeave,
+  finishAutosave,
+  showSaveStatus,
+  waitForField,
+} = require("./autosave.js");
+
+assert.strictEqual(waitForField("title"), 1000);
+assert.strictEqual(waitForField("body"), 2000);
+assert.strictEqual(decideLeave("saved", false), "navigate");
+assert.strictEqual(decideLeave("saved", true), "stay");
+assert.strictEqual(decideLeave("saving", true), "stay");
+assert.strictEqual(decideLeave("failed", true), "stay");
+assert.strictEqual(decideLeave("failed", false), "stay");
 
 function root() {
   const labels = {
@@ -92,3 +106,18 @@ const mismatched = finishAutosave({
 });
 assert.strictEqual(mismatched.state, "failed");
 assert.strictEqual(mismatched.content, newer);
+
+const failedWhileNewer = statusEl();
+const failedPending = finishAutosave({
+  successful: false,
+  responseText: "Failed",
+  snapshot: { title: "Dawn", content: kept },
+  title: "Dawn",
+  content: newer,
+  root: root(),
+  statusEl: failedWhileNewer,
+});
+assert.strictEqual(failedPending.state, "failed");
+assert.strictEqual(failedPending.content, newer);
+assert.strictEqual(failedWhileNewer.textContent, "Failed");
+assert.notStrictEqual(failedWhileNewer.textContent, "");
