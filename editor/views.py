@@ -5,11 +5,12 @@ import logging
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from editor.assist import PROMPT_REJECTION, run_assist
 from stories.models import Chapter, ContentSource, Story
 
 logger = logging.getLogger(__name__)
@@ -83,3 +84,51 @@ def autosave(request, slug, number):
         return _plain(FAILED, 500)
 
     return _plain(SAVED, 200)
+
+
+@login_required
+@require_POST
+def assist(request, slug, number):
+    """Questions and highlights for one chapter. Does not write the chapter."""
+    story = get_object_or_404(Story, slug=slug, author=request.user)
+    chapter = get_object_or_404(Chapter, story=story, number=number)
+    payload = _client_payload(request)
+    if payload is None:
+        return _assist_json(
+            {"status": "rejected", "message": "The chapter text is unchanged."},
+            400,
+        )
+    if payload:
+        return _assist_json(
+            {"status": "rejected", "message": PROMPT_REJECTION},
+            400,
+        )
+    result = run_assist(user=request.user, chapter=chapter)
+    return _assist_json(result.payload, result.status_code)
+
+
+def _client_payload(request):
+    """Empty body only. Any client field is an attempt to set the prompt."""
+    raw = request.body or b""
+    content_type = (request.content_type or "").lower()
+    if "json" in content_type:
+        if not raw.strip():
+            return {}
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        return data
+    return {
+        key: value
+        for key, value in request.POST.items()
+        if key != "csrfmiddlewaretoken"
+    }
+
+
+def _assist_json(payload, status):
+    response = JsonResponse(payload, status=status)
+    response["Cache-Control"] = "no-store"
+    return response
