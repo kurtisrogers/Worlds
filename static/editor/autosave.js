@@ -91,19 +91,10 @@ function onAutosaveFinish(evt) {
   });
 }
 
-function onReviewClick(evt) {
-  var target = evt.target;
-  if (!target || !target.closest || !target.closest("#review-control")) {
-    return;
-  }
-  evt.preventDefault();
-}
-
 function bindEditor(doc) {
   doc.addEventListener("htmx:beforeRequest", onAutosaveStart);
   doc.addEventListener("htmx:afterRequest", onAutosaveFinish);
   doc.addEventListener("htmx:sendError", onAutosaveFinish);
-  doc.addEventListener("click", onReviewClick);
 }
 
 var worldsEditor = {

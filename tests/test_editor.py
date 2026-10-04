@@ -1,6 +1,7 @@
 """Editor autosave and writer-chrome tests."""
 
 import json
+import re
 import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
@@ -140,7 +141,7 @@ class TestEditor:
             if node["parent"]
             and "editor-strip" in node["parent"]["attrs"].get("class", "")
         ]
-        assert strip_children == ["chapter-title", "save-status", "review-control"]
+        assert strip_children == ["chapter-title", "save-status"]
 
     def test_visible_status_matches_autosave_result(self, client_logged_in, story):
         ChapterFactory(story=story, number=1, title="Dawn", content=PARAGRAPH)
@@ -196,15 +197,12 @@ class TestEditor:
         chapter.refresh_from_db()
         assert chapter.content == PARAGRAPH
 
-    def test_keyboard_reaches_manuscript_status_review_and_book(
-        self, client_logged_in, story
-    ):
+    def test_keyboard_reaches_manuscript_status_and_book(self, client_logged_in, story):
         ChapterFactory(story=story, number=1, title="Dawn", content=PARAGRAPH)
         html = client_logged_in.get(_edit_url(story)).content.decode()
         nodes = _parse(html)
         back = _by_id(nodes, "back-to-book")
         status = _by_id(nodes, "save-status")
-        review = _by_id(nodes, "review-control")
         manuscript = _by_id(nodes, "manuscript")
         assert back["tag"] == "a"
         assert back["attrs"].get("href") == reverse(
@@ -212,13 +210,10 @@ class TestEditor:
         )
         assert status["attrs"].get("tabindex") == "0"
         assert status["attrs"].get("role") == "status"
-        assert review["tag"] == "button"
-        assert "disabled" not in review["attrs"]
         assert manuscript["tag"] == "textarea"
-        buttons = [node for node in nodes if node["tag"] == "button"]
-        assert [node["attrs"].get("id") for node in buttons] == ["review-control"]
+        assert [node for node in nodes if node["tag"] == "button"] == []
 
-    def test_review_control_does_not_call_a_model_or_open_findings(
+    def test_page_has_no_review_control_and_no_model_call(
         self, client_logged_in, story
     ):
         ChapterFactory(story=story, number=1, title="Dawn", content=PARAGRAPH)
@@ -233,25 +228,33 @@ class TestEditor:
             "findings",
             "generate",
             'role="dialog"',
+            "review",
         ):
             assert banned not in lowered
-        nodes = _parse(html)
-        review = _by_id(nodes, "review-control")
-        for attr in (
-            "hx-get",
-            "hx-post",
-            "hx-put",
-            "hx-patch",
-            "formaction",
-            "onclick",
-        ):
-            assert attr not in review["attrs"]
         assert html.count("hx-post=") == 1
         assert _autosave_url(story) in html
         assert 'hx-swap="none"' in html
         script = (ROOT / "static" / "editor" / "autosave.js").read_text()
-        for banned in ("fetch(", "XMLHttpRequest", "openai", "innerHTML", ".value ="):
-            assert banned not in script
+        for banned in (
+            "fetch(",
+            "XMLHttpRequest",
+            "openai",
+            "innerHTML",
+            ".value =",
+            "review",
+        ):
+            assert banned not in script.lower()
+
+    def test_chapter_title_is_larger_than_the_prose_and_status_stays_small(self):
+        css = (ROOT / "static" / "editor" / "editor.css").read_text()
+        column = css.split(".editor-column", 1)[1].split("}", 1)[0]
+        title = css.split(".editor-title", 1)[1].split("}", 1)[0]
+        status = css.split(".editor-status", 1)[1].split("}", 1)[0]
+        prose = float(re.search(r"font-size:\s*([0-9.]+)rem", column).group(1))
+        title_size = float(re.search(r"font-size:\s*([0-9.]+)rem", title).group(1))
+        status_size = float(re.search(r"font-size:\s*([0-9.]+)rem", status).group(1))
+        assert title_size > prose
+        assert status_size < prose
 
     def test_manuscript_column_css_wraps_a_normal_paragraph(self):
         css = (ROOT / "static" / "editor" / "editor.css").read_text()

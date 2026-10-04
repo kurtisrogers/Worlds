@@ -44,7 +44,7 @@
 }
 
 .editor-title {
-  flex: 1 1 8rem;
+  flex: 1 1 12rem;
   min-width: 0;
   max-width: 100%;
   margin: 0;
@@ -52,26 +52,22 @@
   border: 0;
   background: transparent;
   color: inherit;
-  font: inherit;
-  font-size: 1rem;
-  line-height: 1.4;
+  font-family: Literata, Georgia, serif;
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
-.editor-status,
-.editor-review {
+.editor-status {
   flex: 0 0 auto;
   margin: 0;
   padding: 0.15rem 0;
   border: 0;
   background: transparent;
   color: #78716c;
-  font: inherit;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 0.8125rem;
   line-height: 1.4;
-}
-
-.editor-review {
-  cursor: pointer;
 }
 
 .manuscript {
@@ -100,7 +96,6 @@
 .editor-back:focus,
 .editor-title:focus,
 .editor-status:focus,
-.editor-review:focus,
 .manuscript:focus {
   outline: 2px solid #a8a29e;
   outline-offset: 3px;
@@ -111,7 +106,6 @@
 }
 
 .dark .editor-back,
-.dark .editor-status,
-.dark .editor-review {
+.dark .editor-status {
   color: #a8a29e;
 }
