@@ -94,7 +94,7 @@ def _post(client, story, payload=None, number=1):
     if payload is None:
         body = b""
         content_type = "application/json"
-    elif isinstance(payload, (dict, list)):
+    elif isinstance(payload, dict | list):
         body = json.dumps(payload)
         content_type = "application/json"
     else:
