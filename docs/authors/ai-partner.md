@@ -4,8 +4,8 @@ One rule: the writer keeps the words. OpenAI is the only provider. The editor st
 
 ## Product rules
 
-- Suggest, question, and highlight. Do not write the story.
-- Never replace chapter text unless the writer takes a separate, explicit action that names that replacement.
+- Suggest and question. Do not write the story.
+- The model never writes the chapter.
 - The writer can dismiss or ignore every finding. Dismiss does not edit the chapter.
 - No silent rewrite of a draft or a published chapter.
 - On-screen copy says this is assistance, not authorship.
@@ -16,15 +16,13 @@ When an assist succeeds, the response carries the sentence "This is assistance, 
 
 ## The editor
 
-With the AI flag off, opening and editing a chapter makes no call to OpenAI. The editor behaves as it does without AI. Autosave writes the title and the chapter text the writer submitted. It does not apply a model replacement.
-
-There is no API whose effect is to replace a chapter body without a separate writer confirmation that refers to that replacement. Assist does not write the chapter. Dismiss does not edit the chapter.
+With the AI flag off, opening and editing a chapter makes no call to OpenAI. The editor behaves as it does without AI. Autosave writes the title and the chapter text the writer typed. The model never writes the chapter. There is no replace route. Assist does not write the chapter. Dismiss does not edit the chapter.
 
 If OpenAI returns an error or times out, the chapter text is unchanged and the writer can keep editing. The assist shows a failure, not an empty manuscript.
 
 ## Prompts
 
-The client cannot set the system prompt. Prompts and policies are assembled on the server from the stored chapter. A request that tries to send a prompt, a model, or replacement text is rejected and OpenAI is not called.
+The client cannot set the system prompt. Prompts and policies are assembled on the server from the stored chapter. A request that tries to send a prompt or a model is rejected and OpenAI is not called. Suggest and question only.
 
 ## Credential
 

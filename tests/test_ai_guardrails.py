@@ -540,7 +540,53 @@ class TestCaps:
 
 
 @pytest.mark.django_db
-class TestNoUnconfirmedReplacement:
+class TestModelNeverWrites:
+    def test_confirmed_rewrite_does_not_change_the_chapter(
+        self, client_logged_in, story, chapter, settings, monkeypatch
+    ):
+        _enable(settings)
+        stub = _install(monkeypatch, StubProvider(_completion()))
+        replacement = "A model wrote this instead."
+        confirmation = f"Replace the chapter with: {replacement}"
+        response = _post(
+            client_logged_in,
+            story,
+            {
+                "confirmation": confirmation,
+                "replacement": replacement,
+                "content": replacement,
+            },
+        )
+        assert response.status_code == 400
+        assert stub.calls == []
+        chapter.refresh_from_db()
+        assert chapter.content == PARAGRAPH
+        assert chapter.title == "Dawn"
+
+        typed = client_logged_in.post(
+            _autosave_url(story),
+            data=json.dumps(
+                {
+                    "confirmation": confirmation,
+                    "replacement": replacement,
+                }
+            ),
+            content_type="application/json",
+        )
+        assert typed.status_code == 200
+        chapter.refresh_from_db()
+        assert chapter.content == PARAGRAPH
+
+        kept = client_logged_in.post(
+            _autosave_url(story),
+            data=json.dumps({"title": "Dawn", "content": PARAGRAPH + " Still mine."}),
+            content_type="application/json",
+        )
+        assert kept.status_code == 200
+        assert kept.content.decode() == "Saved"
+        chapter.refresh_from_db()
+        assert chapter.content == PARAGRAPH + " Still mine."
+
     def test_assist_does_not_replace_the_chapter(
         self, client_logged_in, story, chapter, settings, monkeypatch
     ):
@@ -563,6 +609,10 @@ class TestNoUnconfirmedReplacement:
 
         names = {pattern.name for pattern in editor_urls.urlpatterns}
         assert names == {"edit", "autosave", "assist"}
+        for name in names:
+            assert "replace" not in name
+            assert "confirm" not in name
+            assert "rewrite" not in name
         replacement = "A model wrote this instead."
         confirmation = f"Replace the chapter with: {replacement}"
         for suffix in ("replace", "apply", "generate", "rewrite", "confirm"):
@@ -687,8 +737,8 @@ class TestProductRules:
     def test_repo_docs_state_the_product_rules_and_retention(self):
         doc = (ROOT / "docs" / "authors" / "ai-partner.md").read_text()
         for rule in (
-            "Suggest, question, and highlight. Do not write the story.",
-            "Never replace chapter text unless the writer takes a separate, explicit action that names that replacement.",
+            "Suggest and question. Do not write the story.",
+            "The model never writes the chapter.",
             "The writer can dismiss or ignore every finding. Dismiss does not edit the chapter.",
             "No silent rewrite of a draft or a published chapter.",
             "On-screen copy says this is assistance, not authorship.",
@@ -697,6 +747,13 @@ class TestProductRules:
             "the writer keeps the words",
         ):
             assert rule in doc
+        assert "explicit action that names that replacement" not in doc
+        assert "writer confirmation" not in doc
+        policy = system_instructions()
+        assert "The model never writes the chapter." in policy
+        assert "Suggest and question." in policy
+        assert "explicit action that names" not in policy
+        assert "confirmation" not in policy.lower()
         assert "Prompt text and response text are not stored" in doc
         assert "before the flag is turned on outside local development" in doc
         assert "who invoked it" in doc

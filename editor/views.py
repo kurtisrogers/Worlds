@@ -89,7 +89,7 @@ def autosave(request, slug, number):
 @login_required
 @require_POST
 def assist(request, slug, number):
-    """Questions and highlights for one chapter. Does not write the chapter."""
+    """Questions for one chapter. The model never writes the chapter."""
     story = get_object_or_404(Story, slug=slug, author=request.user)
     chapter = get_object_or_404(Chapter, story=story, number=number)
     payload = _client_payload(request)
