@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from editor.assist import PROMPT_REJECTION, run_assist
+from editor.models import ReviewFinding
+from editor.review import run_review
 from stories.models import Chapter, ContentSource, Story
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,40 @@ def assist(request, slug, number):
         )
     result = run_assist(user=request.user, chapter=chapter)
     return _assist_json(result.payload, result.status_code)
+
+
+@login_required
+@require_POST
+def review(request, slug, number):
+    """Store questions beside one chapter. The model never writes the chapter."""
+    story = get_object_or_404(Story, slug=slug, author=request.user)
+    chapter = get_object_or_404(Chapter, story=story, number=number)
+    payload = _client_payload(request)
+    if payload is None:
+        return _assist_json(
+            {"status": "rejected", "message": "The chapter text is unchanged."},
+            400,
+        )
+    if payload:
+        return _assist_json(
+            {"status": "rejected", "message": PROMPT_REJECTION},
+            400,
+        )
+    result = run_review(user=request.user, chapter=chapter)
+    return _assist_json(result.payload, result.status_code)
+
+
+@login_required
+@require_POST
+def dismiss_finding(request, slug, number, finding_id):
+    """Mark a finding dismissed. The chapter row is not saved."""
+    story = get_object_or_404(Story, slug=slug, author=request.user)
+    chapter = get_object_or_404(Chapter, story=story, number=number)
+    finding = get_object_or_404(ReviewFinding, pk=finding_id, chapter=chapter)
+    if finding.status != ReviewFinding.Status.DISMISSED:
+        finding.status = ReviewFinding.Status.DISMISSED
+        finding.save(update_fields=["status"])
+    return _assist_json({"status": "dismissed", "id": finding.id}, 200)
 
 
 def _client_payload(request):

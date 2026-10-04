@@ -20,6 +20,14 @@ With the AI flag off, opening and editing a chapter makes no call to OpenAI. The
 
 If OpenAI returns an error or times out, the chapter text is unchanged and the writer can keep editing. The assist shows a failure, not an empty manuscript.
 
+## Chapter review
+
+A chapter review stores each question beside the chapter. A rewrite is not applied. When nothing is proved, the review returns a gap.
+
+The review uses the same flag and the same OpenAI path. The model is asked for questions and locations in the writer's text, not replacement prose. Each finding is its own row: the chapter, an anchor in the writer's text, a question, a status of open or dismissed, the model id, and who asked. Dismiss does not edit the chapter. The audit row records who asked, when, which chapter, and which model. It does not store a prompt body.
+
+If the provider errors, times out, or the account is over a quota, the editor still saves. The review returns a gap, which means nothing was proved. It does not report an all-clear. The chapter page still has no review control.
+
 ## Prompts
 
 The client cannot set the system prompt. Prompts and policies are assembled on the server from the stored chapter. A request that tries to send a prompt or a model is rejected and OpenAI is not called. Suggest and question only.
