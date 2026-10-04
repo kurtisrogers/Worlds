@@ -42,6 +42,23 @@
   overflow-wrap: anywhere;
 }
 
+.editor-chapter-picker {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.editor-chapters-name {
+  margin: 0;
+  color: #78716c;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 .editor-chapters {
   flex: 0 1 auto;
   max-width: 100%;
@@ -132,6 +149,7 @@
 }
 
 .dark .editor-back,
+.dark .editor-chapters-name,
 .dark .editor-chapters,
 .dark .editor-status {
   color: #a8a29e;

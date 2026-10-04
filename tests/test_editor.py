@@ -46,10 +46,15 @@ class _Nodes(HTMLParser):
     def handle_starttag(self, tag, attrs):
         attr = {key: value for key, value in attrs}
         parent = self.stack[-1] if self.stack else None
-        self.nodes.append({"tag": tag, "attrs": attr, "parent": parent})
-        self.stack.append({"tag": tag, "attrs": attr})
+        node = {"tag": tag, "attrs": attr, "parent": parent, "text": ""}
+        self.nodes.append(node)
+        self.stack.append(node)
         if tag in _VOID_TAGS:
             self.stack.pop()
+
+    def handle_data(self, data):
+        if self.stack:
+            self.stack[-1]["text"] += data
 
     def handle_endtag(self, tag):
         for index in range(len(self.stack) - 1, -1, -1):
@@ -144,6 +149,20 @@ class TestEditor:
         assert strip_children == ["chapter-title", "save-status"]
         assert 'id="chapter-menu"' in html
         assert 'hx-trigger="flush"' in html
+
+    def test_chapter_menu_has_the_visible_name_chapters(self, client_logged_in, story):
+        ChapterFactory(story=story, number=1, title="Dawn", content=PARAGRAPH)
+        html = client_logged_in.get(_edit_url(story)).content.decode()
+        nodes = _parse(html)
+        menu = _by_id(nodes, "chapter-menu")
+        assert menu["tag"] == "select"
+        labels = [
+            node
+            for node in nodes
+            if node["tag"] == "label" and node["attrs"].get("for") == "chapter-menu"
+        ]
+        assert len(labels) == 1
+        assert labels[0]["text"].strip() == "Chapters"
 
     def test_visible_status_matches_autosave_result(self, client_logged_in, story):
         ChapterFactory(story=story, number=1, title="Dawn", content=PARAGRAPH)

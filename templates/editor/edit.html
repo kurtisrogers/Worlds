@@ -21,11 +21,14 @@
   <div class="editor-column">
     <div class="editor-tools">
       <a id="back-to-book" class="editor-back" href="{% url 'stories:manage' slug=story.slug %}">Back to {{ story.title }}</a>
-      <select id="chapter-menu" class="editor-chapters" data-current="{% url 'editor:edit' slug=story.slug number=chapter.number %}">
-        {% for ch in chapters %}
-          <option value="{% url 'editor:edit' slug=story.slug number=ch.number %}" {% if ch.number == chapter.number %}selected{% endif %}>Ch. {{ ch.number }}: {{ ch.title }}</option>
-        {% endfor %}
-      </select>
+      <div class="editor-chapter-picker">
+        <label class="editor-chapters-name" for="chapter-menu">Chapters</label>
+        <select id="chapter-menu" class="editor-chapters" data-current="{% url 'editor:edit' slug=story.slug number=chapter.number %}">
+          {% for ch in chapters %}
+            <option value="{% url 'editor:edit' slug=story.slug number=ch.number %}" {% if ch.number == chapter.number %}selected{% endif %}>Ch. {{ ch.number }}: {{ ch.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
     <form
       id="chapter-form"
