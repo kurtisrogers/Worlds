@@ -4,8 +4,7 @@
 
 1. Create a story from your dashboard
 2. Click **Write** or open the editor from chapter management
-3. Write with autosave — changes save every 2 seconds
-4. Use toolbar buttons for bold, italic, and scene breaks
+3. The chapter is the page. Edits save on their own; the strip shows Saving, Saved, or Failed.
 
 ## Chapter settings
 

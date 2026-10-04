@@ -1,0 +1,156 @@
+.editor-main {
+  min-height: 100vh;
+}
+
+.editor-shell {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+.editor-column {
+  width: 100%;
+  max-width: 70ch;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 3rem;
+  box-sizing: border-box;
+  font-family: Literata, Georgia, serif;
+  font-size: 1.125rem;
+}
+
+.editor-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 0.75rem;
+}
+
+.editor-back {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  color: #78716c;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.editor-chapter-picker {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.editor-chapters-name {
+  margin: 0;
+  color: #78716c;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.editor-chapters {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #78716c;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.editor-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  width: 100%;
+  min-width: 0;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #e7e5e4;
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+.editor-title {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: Literata, Georgia, serif;
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.editor-status {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+  color: #78716c;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.manuscript {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: calc(100vh - 8rem);
+  box-sizing: border-box;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  border: 0;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.7;
+}
+
+.editor-back:focus,
+.editor-chapters:focus,
+.editor-title:focus,
+.editor-status:focus,
+.manuscript:focus {
+  outline: 2px solid #a8a29e;
+  outline-offset: 3px;
+}
+
+.dark .editor-strip {
+  border-bottom-color: #292524;
+}
+
+.dark .editor-back,
+.dark .editor-chapters-name,
+.dark .editor-chapters,
+.dark .editor-status {
+  color: #a8a29e;
+}
