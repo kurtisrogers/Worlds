@@ -114,6 +114,37 @@ GOOGLE_REDIRECT_URI = env(
     "GOOGLE_REDIRECT_URI", default="http://localhost:8000/integrations/google/callback/"
 )
 
+
+def _optional_int(name):
+    raw = env(name, default="")
+    if raw is None or str(raw).strip() == "":
+        return None
+    return int(raw)
+
+
+# AI assist. Off by default. OpenAI is the only provider.
+# Caps are unset so local development can run without them.
+# A shared environment must set both caps before the flag is turned on.
+AI_ASSIST_ENABLED = env.bool("AI_ASSIST_ENABLED", default=False)
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-4o-mini")
+OPENAI_TIMEOUT_SECONDS = env.int("OPENAI_TIMEOUT_SECONDS", default=30)
+_environment = env("WORLDS_ENVIRONMENT", default="").strip().lower()
+if _environment not in {"local", "shared"}:
+    WORLDS_ENVIRONMENT = "local" if DEBUG else "shared"
+else:
+    WORLDS_ENVIRONMENT = _environment
+AI_USER_RATE_LIMIT = _optional_int("AI_USER_RATE_LIMIT")
+AI_USER_RATE_WINDOW_SECONDS = _optional_int("AI_USER_RATE_WINDOW_SECONDS")
+AI_SPEND_CAP_CENTS = _optional_int("AI_SPEND_CAP_CENTS")
+AI_SPEND_WINDOW_SECONDS = _optional_int("AI_SPEND_WINDOW_SECONDS")
+OPENAI_INPUT_CENTS_PER_MILLION_TOKENS = _optional_int(
+    "OPENAI_INPUT_CENTS_PER_MILLION_TOKENS"
+)
+OPENAI_OUTPUT_CENTS_PER_MILLION_TOKENS = _optional_int(
+    "OPENAI_OUTPUT_CENTS_PER_MILLION_TOKENS"
+)
+
 # Subscription tier defaults (cents)
 TIER_DEFAULTS = {
     "bronze": {"price_cents": 499, "label": "Bronze", "color": "#cd7f32"},

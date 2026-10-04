@@ -6,6 +6,8 @@
 2. Click **Write** or open the editor from chapter management
 3. The chapter is the page. Edits save on their own; the strip shows Saving, Saved, or Failed.
 
+The rules for an AI partner are in [AI creative partner](ai-partner.md). One rule: the writer keeps the words.
+
 ## Chapter settings
 
 From **Manage → Settings** on each chapter:

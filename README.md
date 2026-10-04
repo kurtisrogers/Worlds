@@ -69,6 +69,8 @@ mkdocs serve
 
 See `.env.example` for Stripe, Google OAuth, and database configuration.
 
+AI assist is off by default. `OPENAI_API_KEY` is read from the environment or from secrets. It is not committed and it is not sent to the browser. The product rules are in `docs/authors/ai-partner.md`.
+
 ## Mission
 
 Create the next generation of creatives. Do away with algorithms and predictive successes. Let readers decide what deserves to be published.
