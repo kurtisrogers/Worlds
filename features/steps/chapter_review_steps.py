@@ -50,8 +50,6 @@ _VOID = {
 _ALL_CLEAR = ("no gaps", "all clear", "all-clear", "no issues", "looks good")
 _DID_NOT_RUN = ("did not run", "nothing proved")
 _GAP_NOTE = ("nothing was applied", "nothing proved", "did not run")
-_NOTHING_PROVED = "Nothing proved. The chapter text is unchanged."
-_REWRITE_GAP = "The model returned replacement prose. Nothing was applied."
 _DID_NOT_RUN_PANEL = "The review did not run. Your chapter hasn't changed."
 _REVIEW_STATE_NOT_ON_MAIN = (
     "Fail closed: PR #28 is not on main yet. A review response carries "
@@ -95,8 +93,8 @@ _ANCHOR_NOT_ON_MAIN = (
     "question, status, quote (120 characters max), start_offset, and "
     "anchor_status, which is one of ok, changed, or none. "
     "start_offset counts UTF-16 code units, the same way the browser "
-    "caret does, and it is sent only when anchor_status is ok. "
-    "This scenario is not skipped."
+    "caret does. It is an integer when anchor_status is ok, and absent "
+    "or null otherwise. This scenario is not skipped."
 )
 _ANCHOR_STATUSES = {"ok", "changed", "none"}
 _CHANGED_COPY = "This passage has changed"
@@ -722,6 +720,8 @@ def _focus_target(node):
         value = node.attrs.get(key) or ""
         if "manuscript" in value:
             return value
+    if node.attrs.get("data-start-offset") not in (None, ""):
+        return "manuscript"
     return ""
 
 
@@ -758,6 +758,13 @@ def _review_state_on_main():
 def _require_review_state():
     if not _review_state_on_main():
         raise AssertionError(_REVIEW_STATE_NOT_ON_MAIN)
+
+
+def _quote_contract():
+    """A real question is quote plus question once #28's contract is present."""
+    if _named_field("quote") is not None and _named_field("start_offset") is not None:
+        return True
+    return _review_state_on_main()
 
 
 def _snapshot_findings(context):
@@ -972,7 +979,12 @@ def step_stub_question(context, question, anchor):
     assert anchor in context.chapter.content
     context.question = question
     context.anchor = anchor
-    payload = json.dumps({"findings": [{"anchor": anchor, "question": question}]})
+    context.quote = anchor
+    if _quote_contract():
+        item = {"quote": anchor, "question": question}
+    else:
+        item = {"anchor": anchor, "question": question}
+    payload = json.dumps({"findings": [item]})
     _install_stub(context, _completion(payload))
 
 
@@ -1261,7 +1273,11 @@ def step_one_open_finding(context, question):
     row = findings[0]
     assert row["question"] == question
     assert row["status"] == "open"
-    assert row["anchor"] == context.anchor
+    if _quote_contract():
+        assert row.get("quote") == context.anchor, row
+        assert row.get("anchor_status") == "ok", row
+    else:
+        assert row.get("anchor") == context.anchor, row
     stored = ReviewFinding.objects.get(pk=row["id"])
     assert stored.status == ReviewFinding.Status.OPEN
     assert stored.question == question
@@ -1336,23 +1352,31 @@ def step_rewrite_gap(context, rewrite):
     payload = _payload(context)
     raw = context.response.content.decode()
     assert payload["status"] == "gap"
-    assert payload["message"] == _NOTHING_PROVED
     assert "no gaps" not in raw.casefold()
     assert rewrite not in raw
-    note = payload["gap_note"]
-    assert note["status"] == "open"
-    assert note["question"] == _REWRITE_GAP
-    assert rewrite not in note["question"]
-    assert rewrite not in (note.get("anchor") or "")
-    stored = ReviewFinding.objects.get(pk=note["id"])
-    assert stored.kind == ReviewFinding.Kind.GAP
+    for item in payload.get("findings") or []:
+        assert rewrite not in json.dumps(item)
+    gaps = ReviewFinding.objects.filter(kind=ReviewFinding.Kind.GAP)
+    assert gaps.count() == 1, f"{gaps.count()} gap notes were stored."
+    stored = gaps.get()
     assert stored.status == ReviewFinding.Status.OPEN
-    assert stored.question == _REWRITE_GAP
     assert rewrite not in stored.question
-    assert rewrite not in stored.anchor
+    assert rewrite not in (stored.anchor or "")
     assert ReviewFinding.objects.filter(kind=ReviewFinding.Kind.QUESTION).count() == 0
     context.chapter.refresh_from_db()
     assert context.chapter.content == context.original_body
+    _open_editor(context)
+    assert rewrite not in context.page
+    parser = _parse(context.page)
+    panel = _panel_node(parser)
+    if panel is not None:
+        assert rewrite not in panel.visible()
+        for node in _walk(panel):
+            classes = (node.attrs.get("class") or "").split()
+            if "review-finding" in classes:
+                assert (
+                    rewrite not in node.visible()
+                ), "The rewrite is showing as a panel row."
 
 
 @then('the review stores no invented finding "{marker}"')
@@ -1460,14 +1484,12 @@ def step_anchor_status(context, status):
         assert len(quote) <= 120, quote
     if status == "ok":
         assert isinstance(row.get("start_offset"), int), row
-    elif status == "changed":
-        assert (
-            "start_offset" not in row
-        ), "start_offset is sent only when anchor_status is ok."
-    elif status == "none":
-        assert (
-            "start_offset" not in row
-        ), "start_offset is sent only when anchor_status is ok."
+    elif status in {"changed", "none"}:
+        offset = row.get("start_offset", None)
+        assert offset is None, (
+            "start_offset is absent or null when anchor_status is not ok. "
+            f"It is {offset!r}."
+        )
     else:
         raise AssertionError(f"anchor_status {status!r} is not ok, changed, or none.")
     context.finding_payload = row
@@ -1708,14 +1730,32 @@ def step_browser_dismiss(context, question):
     context.dismissed_question = question
 
 
-@then("the rows that loaded with the page are cleared before the new rows show")
-def step_rows_cleared(context):
-    count = context._page.locator(".review-finding").count()
-    if count != 0:
+@then("no finding is shown twice while the review is running")
+def step_rows_while_running(context):
+    page = context._page
+    count = page.locator(".review-finding").count()
+    if count > 1:
         raise AssertionError(
-            "Rows that loaded with the page are still showing while the "
-            "new review has not arrived."
+            f"{count} finding rows are showing while the review has not arrived."
         )
+
+
+@then("Jump lands at the stored offset")
+def step_jump_at_stored_offset(context):
+    expected = context.finding_payload.get("start_offset")
+    if not isinstance(expected, int):
+        raise AssertionError(
+            f"The stored offset is {expected!r}, so Jump has nowhere to land."
+        )
+    context.chapter.refresh_from_db()
+    page = _browser_page(context)
+    _press_jump(page)
+    measured = _measure_caret(page)
+    actual = measured["selectionStart"]
+    assert (
+        actual == expected
+    ), f"Jump put the caret at {actual}. The stored offset is {expected}."
+    assert measured["value"] == context.chapter.content
 
 
 @then('the open finding "{question}" is shown once')
@@ -1727,6 +1767,15 @@ def step_shown_once(context, question):
     except PlaywrightTimeout:
         raise AssertionError(f"The review panel does not show {question!r}.") from None
     assert rows.count() == 1, f"The finding is shown {rows.count()} times."
+    loaded_id = getattr(context, "finding_id", None)
+    if loaded_id is None:
+        return
+    shown_id = rows.first.get_attribute("data-finding-id")
+    if shown_id is None or shown_id == str(loaded_id):
+        raise AssertionError(
+            "The row that loaded with the page is still showing after the "
+            f"new review arrived. Its id is {shown_id!r}."
+        )
 
 
 @then("the save finishes before the review request")

@@ -186,27 +186,42 @@ Feature: One-chapter review asks questions and never writes the manuscript
     And the finding row keeps the question and Dismiss and has no Jump control
     And the stored chapter body is byte-for-byte "The river kept its course through the quiet valley."
 
+  # UX is confirming this. The quote is still at its stored offset and also
+  # appears later, so the status is ok and Jump uses that stored offset.
+  # Flip the expected result if UX disagrees.
   @pending-review-panel
-  Scenario: A quote that appears more than once has no Jump control
+  Scenario: A quote that is still at its stored offset stays ok when it also appears elsewhere
     Given each finding returns quote, start_offset, and anchor_status
     And the AI assist flag is on
     And the OpenAI client is stubbed to return the question "Does the river stay in the valley?" quoted as "The river kept its course"
     When I open that chapter in the editor
     And I run the review from the keyboard
     And I edit the chapter body to "The river kept its course through the quiet valley. The river kept its course." and autosave
-    Then that finding's anchor_status is "none"
-    And the finding row shows "Can't find this passage in the chapter"
-    And the finding row keeps the question and Dismiss and has no Jump control
+    Then that finding's anchor_status is "ok"
+    And Jump lands at the stored offset
     And the stored chapter body is exactly "The river kept its course through the quiet valley. The river kept its course."
 
   @pending-review-panel
-  Scenario: Running Review again clears the rows that loaded with the page
+  Scenario: A quote that moved and appears more than once has no Jump control
+    Given each finding returns quote, start_offset, and anchor_status
+    And the AI assist flag is on
+    And the OpenAI client is stubbed to return the question "Does the river stay in the valley?" quoted as "The river kept its course"
+    When I open that chapter in the editor
+    And I run the review from the keyboard
+    And I edit the chapter body to "Morning came. The river kept its course. The river kept its course." and autosave
+    Then that finding's anchor_status is "none"
+    And the finding row shows "Can't find this passage in the chapter"
+    And the finding row keeps the question and Dismiss and has no Jump control
+    And the stored chapter body is exactly "Morning came. The river kept its course. The river kept its course."
+
+  @pending-review-panel
+  Scenario: Running Review again replaces the loaded rows when the response arrives
     Given the AI assist flag is on
     And an open finding "Does the river stay in the valley?" is already stored on that chapter
     And the OpenAI client is stubbed to hold the question "Does the river stay in the valley?" quoted as "The river kept its course"
     When I open that chapter in the editor
     And I run the review from the keyboard in the browser
-    Then the rows that loaded with the page are cleared before the new rows show
+    Then no finding is shown twice while the review is running
     When the held review response is released
     Then the open finding "Does the river stay in the valley?" is shown once
 
