@@ -1766,16 +1766,33 @@ def step_shown_once(context, question):
         rows.first.wait_for(timeout=8000)
     except PlaywrightTimeout:
         raise AssertionError(f"The review panel does not show {question!r}.") from None
-    assert rows.count() == 1, f"The finding is shown {rows.count()} times."
     loaded_id = getattr(context, "finding_id", None)
     if loaded_id is None:
+        assert rows.count() == 1, f"The finding is shown {rows.count()} times."
         return
-    shown_id = rows.first.get_attribute("data-finding-id")
-    if shown_id is None or shown_id == str(loaded_id):
+    loaded = str(loaded_id)
+    try:
+        page.wait_for_function(
+            """(loadedId) => {
+              const rows = document.querySelectorAll(".review-finding");
+              if (rows.length !== 1) {
+                return false;
+              }
+              const id = rows[0].getAttribute("data-finding-id");
+              return Boolean(id) && id !== loadedId;
+            }""",
+            arg=loaded,
+            timeout=8000,
+        )
+    except PlaywrightTimeout:
+        shown = page.locator(".review-finding").evaluate_all(
+            "els => els.map((el) => el.getAttribute('data-finding-id'))"
+        )
         raise AssertionError(
             "The row that loaded with the page is still showing after the "
-            f"new review arrived. Its id is {shown_id!r}."
-        )
+            f"new review arrived. Row ids: {shown}."
+        ) from None
+    assert rows.count() == 1, f"The finding is shown {rows.count()} times."
 
 
 @then("the save finishes before the review request")
