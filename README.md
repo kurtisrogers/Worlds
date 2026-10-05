@@ -52,8 +52,11 @@ docs/           MkDocs documentation
 # Functional tests
 pytest
 
-# BDD tests
+# BDD tests. Pending chapter-review scenarios are excluded here.
 behave features/
+
+# Chapter review, including scenarios that fail until issues #5 and #6 land.
+make test-review-e2e
 
 # Pre-commit
 pre-commit run --all-files

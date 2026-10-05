@@ -39,13 +39,42 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings.test
 
       - name: Run behave
-        run: behave features/
+        run: behave --no-skipped --tags="not @pending-review-panel and not @pending-review-api" features/
         env:
           DJANGO_SETTINGS_MODULE: config.settings.test
 
       - name: Pre-commit
         run: |
           pre-commit run --all-files
+
+  # Pending review scenarios fail closed until #5 and #6 land.
+  # This job is not the merge gate; the test job above stays green.
+  review-e2e:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        run: python manage.py migrate --settings=config.settings.test
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+
+      - name: Run chapter review scenarios, including pending
+        run: make test-review-e2e
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
 
   docs:
     runs-on: ubuntu-latest
