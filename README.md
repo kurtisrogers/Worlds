@@ -24,7 +24,7 @@ Visit [http://localhost:8000](http://localhost:8000).
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Django 5, Python 3.12 |
+| Backend | Django 6.1, Python 3.12 |
 | Frontend | HTMX, Alpine.js, Tailwind CSS |
 | Payments | Stripe Checkout & webhooks |
 | Integrations | Google Sheets API, DOCX upload |
