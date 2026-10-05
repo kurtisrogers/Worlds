@@ -263,7 +263,7 @@ class TestReviewFlagOff:
         body = _json(response)
         assert body["status"] == "rejected"
         assert body["message"] == FLAG_OFF
-        assert "state" not in body
+        assert body["state"] == "off"
         assert "findings" not in body
         assert stub.calls == []
         assert _snapshot(chapter) == before
@@ -484,29 +484,59 @@ class TestRewriteIsNotApplied:
 
 @pytest.mark.django_db
 class TestReviewGaps:
-    def test_empty_findings_are_a_gap_not_an_all_clear(
+    def test_quiet_run_stores_no_row_and_supersedes_open_findings(
         self, client_logged_in, story, chapter, author, settings, monkeypatch
     ):
         _enable(settings)
-        _install(
-            monkeypatch,
-            StubProvider(_completion(text=json.dumps({"findings": []}))),
+        stub = _install(monkeypatch, StubProvider(_completion()))
+        first = _json(_post(client_logged_in, story))
+        first_ids = [item["id"] for item in first["findings"]]
+        dismissed_id, open_id = first_ids
+        assert (
+            client_logged_in.post(_dismiss_url(story, dismissed_id)).status_code == 200
         )
+        rows_before = ReviewFinding.objects.count()
         before = _snapshot(chapter)
+        stub.result = _completion(text=json.dumps({"findings": []}))
+
         response = _post(client_logged_in, story)
-        body = _assert_not_all_clear(response)
-        assert body["status"] == "gap"
-        assert body["state"] == "ran"
-        assert body["message"] == NO_QUESTIONS
-        assert body["message"] != DID_NOT_RUN
+        body = _json(response)
+        raw = response.content.decode().lower()
+        assert response.status_code == 200
+        assert body == {
+            "status": "ok",
+            "state": "ran",
+            "message": NO_QUESTIONS,
+            "findings": [],
+        }
+        for phrase in BANNED_ALL_CLEAR:
+            assert phrase not in raw
+        assert ReviewFinding.objects.count() == rows_before
+        assert not ReviewFinding.objects.filter(question=NO_QUESTIONS).exists()
+        assert (
+            ReviewFinding.objects.get(pk=dismissed_id).status
+            == ReviewFinding.Status.DISMISSED
+        )
+        assert (
+            ReviewFinding.objects.get(pk=open_id).status
+            == ReviewFinding.Status.SUPERSEDED
+        )
+        ReviewFinding.objects.create(
+            chapter=chapter,
+            asked_by=author,
+            anchor="",
+            question=NO_QUESTIONS,
+            status=ReviewFinding.Status.OPEN,
+            model="gpt-review-model",
+            kind=ReviewFinding.Kind.GAP,
+        )
+        listed = _json(client_logged_in.get(_findings_url(story)))
+        assert listed["findings"] == []
+        assert (
+            NO_QUESTIONS
+            not in client_logged_in.get(_findings_url(story)).content.decode()
+        )
         assert _snapshot(chapter) == before
-        note = ReviewFinding.objects.get()
-        assert note.kind == ReviewFinding.Kind.GAP
-        assert note.question == NO_QUESTIONS
-        assert note.asked_by == author
-        assert note.chapter == chapter
-        assert note.status == ReviewFinding.Status.OPEN
-        assert "no gaps" not in note.question.lower()
 
     @pytest.mark.parametrize(
         ("error", "outcome"),
@@ -748,7 +778,7 @@ class TestEmptyChapter:
         assert response.status_code == 403
         assert body["status"] == "rejected"
         assert body["message"] == FLAG_OFF
-        assert "state" not in body
+        assert body["state"] == "off"
         assert stub.calls == []
         assert AICall.objects.count() == 0
         assert _snapshot(chapter) == before
@@ -844,6 +874,7 @@ class TestReviewDocs:
         assert "The review did not run. Your chapter hasn't changed." in doc
         assert "There's nothing to review yet." in doc
         assert "`ran`" in doc and "`failed`" in doc and "`empty`" in doc
+        assert "`off`" in doc
         example = (ROOT / ".env.example").read_text()
         assert "AI_ASSIST_ENABLED=False" in example
         assert "sk-" not in example

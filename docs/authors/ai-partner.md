@@ -30,7 +30,7 @@ If the provider errors, times out, or the account is over a quota, the editor st
 
 An empty or whitespace-only chapter is not sent to the provider. The review says "There's nothing to review yet." Earlier findings stay as they were, and no audit row is written.
 
-The review response carries `state`. `ran` means the provider answered, with findings or with none. `failed` means the provider did not complete the review. `empty` means the chapter had no text to review. With the flag off, the response stays the existing refusal: `status` is `rejected` and the message is "AI assist is off."
+The review response carries `state`. `ran` means the provider answered, with findings or with none. A quiet run stores no finding row, returns an empty findings list, and supersedes earlier open findings. `failed` means the provider did not complete the review. `empty` means the chapter had no text to review. With the flag off, the response is the existing refusal with `state` `off`: `status` is `rejected` and the message is "AI assist is off."
 
 ## Prompts
 

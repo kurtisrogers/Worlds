@@ -54,15 +54,19 @@ class ReviewResponse:
 def run_review(*, user, chapter):
     """Store questions beside the chapter. The chapter row is not saved.
 
-    A review that stores questions marks this chapter's earlier open
-    findings superseded. Dismissed findings stay dismissed. A provider
-    failure stores nothing and supersedes nothing. An empty chapter
-    does not call the provider, does not write an audit row, and does
-    not supersede findings.
+    A review that stores questions, and a quiet review that returns no
+    questions, mark this chapter's earlier open findings superseded.
+    A quiet review stores no finding row. Dismissed findings stay
+    dismissed. A provider failure stores nothing and supersedes nothing.
+    An empty chapter does not call the provider, does not write an
+    audit row, and does not supersede findings.
     """
     refused = assist.refusal(user)
     if refused is not None:
-        return ReviewResponse(refused.status_code, refused.payload)
+        payload = dict(refused.payload)
+        if refused.status_code == 403 and payload.get("message") == assist.FLAG_OFF:
+            payload["state"] = "off"
+        return ReviewResponse(refused.status_code, payload)
 
     if _chapter_is_empty(chapter):
         return ReviewResponse(
@@ -123,14 +127,26 @@ def run_review(*, user, chapter):
     call.outcome = AICall.Outcome.EMPTY
     _save_call(call)
     _log(call)
-    gap = _store_gap(chapter=chapter, user=user, model=model, question=note)
+    if note == REWRITE_NOTE:
+        gap = _store_gap(chapter=chapter, user=user, model=model, question=note)
+        return ReviewResponse(
+            200,
+            {
+                "status": "gap",
+                "state": "ran",
+                "message": NO_QUESTIONS,
+                "gap_note": present_finding(gap, chapter.content),
+            },
+        )
+
+    _supersede_open(chapter)
     return ReviewResponse(
         200,
         {
-            "status": "gap",
+            "status": "ok",
             "state": "ran",
             "message": NO_QUESTIONS,
-            "gap_note": present_finding(gap, chapter.content),
+            "findings": [],
         },
     )
 
@@ -165,6 +181,16 @@ def _log(call):
         call.story_id,
         call.chapter_id,
         call.model,
+    )
+
+
+_STATUS_MESSAGES = frozenset({NO_QUESTIONS, DID_NOT_RUN, NOTHING_TO_REVIEW})
+
+
+def listed_findings(chapter):
+    """Open findings for the panel. A status line is not a finding."""
+    return chapter.review_findings.filter(status=ReviewFinding.Status.OPEN).exclude(
+        question__in=_STATUS_MESSAGES
     )
 
 

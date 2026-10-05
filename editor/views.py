@@ -13,7 +13,7 @@ from django.views.decorators.http import require_GET, require_POST
 from editor.anchors import present_finding
 from editor.assist import PROMPT_REJECTION, run_assist
 from editor.models import ReviewFinding
-from editor.review import run_review
+from editor.review import listed_findings, run_review
 from stories.models import Chapter, ContentSource, Story
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,7 @@ def findings(request, slug, number):
     """Read current open findings. Does not write the chapter or the rows."""
     story = get_object_or_404(Story, slug=slug, author=request.user)
     chapter = get_object_or_404(Chapter, story=story, number=number)
-    rows = chapter.review_findings.filter(status=ReviewFinding.Status.OPEN)
+    rows = listed_findings(chapter)
     return _assist_json(
         {
             "findings": [present_finding(row, chapter.content) for row in rows],
