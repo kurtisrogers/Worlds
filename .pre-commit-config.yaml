@@ -24,3 +24,12 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
+
+  - repo: local
+    hooks:
+      - id: no-openai-key
+        name: Reject committed OpenAI-style keys
+        entry: python scripts/no_openai_key.py
+        language: system
+        pass_filenames: false
+        always_run: true

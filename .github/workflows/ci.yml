@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Issue #8. This env applies to every job, including review-e2e when
+# that job runs make test-review-e2e. Do not set OPENAI_API_KEY.
+# Do not call the live API. The assist flag stays off.
+env:
+  AI_ASSIST_ENABLED: "false"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -46,6 +52,21 @@ jobs:
       - name: Pre-commit
         run: |
           pre-commit run --all-files
+
+  # Scans this commit for the test job and for review-e2e when #27
+  # adds that job. The fixture key exists only in a temporary file.
+  openai-key-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reject a committed OpenAI-style key
+        run: make check-openai-key
 
   docs:
     runs-on: ubuntu-latest
