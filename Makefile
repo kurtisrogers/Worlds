@@ -52,9 +52,9 @@ test:
 	$(MAKE) behave
 	$(MAKE) pre-commit
 
-# Host-only. Includes @pending-review-panel. Panel scenarios fail closed
-# until the review panel (#5) exists. Anchor scenarios fail closed until
-# PR #28 is on main (quote, start_offset, and anchor_status).
+# Host-only. Includes pending panel and API scenarios. Panel scenarios
+# fail closed until the review panel (#5) exists. State and anchor
+# scenarios fail closed until PR #28 is on main.
 test-review-e2e: export DJANGO_SETTINGS_MODULE := config.settings.test
 test-review-e2e:
 	behave --tags="not @pending-excluded-from-this-run" features/chapter_review.feature

@@ -47,8 +47,8 @@ jobs:
         run: |
           pre-commit run --all-files
 
-  # Pending panel scenarios fail closed until #5. Anchor scenarios fail
-  # closed until PR #28 is on main. Not the merge gate.
+  # Pending panel scenarios fail closed until #5. State and anchor
+  # scenarios fail closed until PR #28 is on main. Not the merge gate.
   review-e2e:
     runs-on: ubuntu-latest
     continue-on-error: true

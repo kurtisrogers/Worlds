@@ -1,7 +1,9 @@
 """Behave steps for one-chapter review. The OpenAI client is stubbed."""
 
+import inspect
 import json
 import re
+import threading
 from html.parser import HTMLParser
 
 from behave import given, then, when
@@ -12,9 +14,11 @@ from django.core.exceptions import FieldDoesNotExist
 from django.test import Client
 from django.test.testcases import LiveServerThread
 from django.urls import NoReverseMatch, reverse
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 import editor.assist as assist
+import editor.review as chapter_review
 from editor import urls as editor_urls
 from editor.models import AICall, ReviewFinding
 from editor.openai_provider import Completion, OpenAIError
@@ -46,6 +50,26 @@ _DID_NOT_RUN = ("did not run", "nothing proved")
 _GAP_NOTE = ("nothing was applied", "nothing proved", "did not run")
 _NOTHING_PROVED = "Nothing proved. The chapter text is unchanged."
 _REWRITE_GAP = "The model returned replacement prose. Nothing was applied."
+_DID_NOT_RUN_PANEL = "The review did not run. Your chapter hasn't changed."
+_REVIEW_STATE_NOT_ON_MAIN = (
+    "Fail closed: PR #28 is not on main yet. A review response carries "
+    "state ran, failed, empty, or off. A ran review that returns questions "
+    "sends an empty message. A quiet run returns state ran with findings "
+    "[], stores no finding row, and still supersedes earlier open findings. "
+    "A failed review returns state failed and supersedes nothing. A "
+    "dismissed finding stays dismissed. An empty chapter returns state "
+    "empty, does not call the model, and does not supersede earlier "
+    "findings. Flag off returns state off. The findings list never includes "
+    "a status line. This scenario is not skipped."
+)
+_NO_QUESTIONS = "No questions this time. Your chapter hasn't changed."
+_NOTHING_TO_REVIEW = "There's nothing to review yet."
+_REVIEW_STATES = {"ran", "failed", "empty", "off"}
+_STATUS_LINES = frozenset({_NO_QUESTIONS, _DID_NOT_RUN_PANEL, _NOTHING_TO_REVIEW})
+_SAVE_ORDER = (
+    "The review request started while a save was still pending. "
+    "The save has to finish first, and the review has to use the on-screen text."
+)
 _INTEGER_TYPES = {
     "IntegerField",
     "PositiveIntegerField",
@@ -179,6 +203,24 @@ class StubProvider:
         return self.result
 
 
+class HoldingProvider(StubProvider):
+    """Blocks in complete until the scenario releases the response."""
+
+    def __init__(self, result):
+        super().__init__(result)
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def complete(self, *, system, user):
+        self.calls.append({"system": system, "user": user})
+        self.entered.set()
+        if not self.release.wait(timeout=15):
+            raise AssertionError("The held review response was not released.")
+        if isinstance(self.result, BaseException):
+            raise self.result
+        return self.result
+
+
 def _completion(text):
     return Completion(
         text=text,
@@ -197,12 +239,19 @@ def _assign_settings(context, **kwargs):
         setattr(settings, key, value)
 
 
-def _install_stub(context, result):
-    context.stub = StubProvider(result)
+def _install_provider(context, provider):
+    context.stub = provider
+    if isinstance(provider, HoldingProvider):
+        context.holder = provider
+        context.close_browser = lambda: _close_browser(context)
     if getattr(context, "_provider_module", None) is None:
         context._provider_module = assist
         context._original_get_provider = assist.get_provider
     assist.get_provider = lambda: context.stub
+
+
+def _install_stub(context, result):
+    _install_provider(context, StubProvider(result))
 
 
 def _parse(html):
@@ -407,6 +456,15 @@ def _read_finding(context):
 
 
 def _close_browser(context):
+    holder = getattr(context, "holder", None)
+    if holder is not None:
+        holder.release.set()
+    for route in list(getattr(context, "held_routes", []) or []):
+        try:
+            route.abort()
+        except Exception:
+            pass
+    context.held_routes = []
     browser = getattr(context, "_browser", None)
     playwright = getattr(context, "_playwright", None)
     server = getattr(context, "_live_server", None)
@@ -484,6 +542,14 @@ def _browser_page(context):
         "editor:edit",
         kwargs={"slug": context.story.slug, "number": context.chapter.number},
     )
+    context.review_posts = []
+
+    def _count_review(request):
+        path = request.url.split("?", 1)[0].rstrip("/")
+        if request.method == "POST" and path.endswith("/review"):
+            context.review_posts.append(path)
+
+    page.on("request", _count_review)
     page.goto(url)
     context._page = page
     return page
@@ -650,6 +716,150 @@ def _no_all_clear(text):
         assert phrase not in lowered, f"The page says {phrase!r} for a review."
 
 
+def _review_state_on_main():
+    statuses = {value for value, _label in ReviewFinding.Status.choices}
+    if "superseded" not in statuses:
+        return False
+    try:
+        source = inspect.getsource(chapter_review.run_review)
+    except (OSError, TypeError):
+        return False
+    return "state" in source
+
+
+def _require_review_state():
+    if not _review_state_on_main():
+        raise AssertionError(_REVIEW_STATE_NOT_ON_MAIN)
+
+
+def _snapshot_findings(context):
+    context.finding_ids_before_request = set(
+        ReviewFinding.objects.values_list("id", flat=True)
+    )
+
+
+def _assert_no_status_line(context, payload):
+    findings = payload.get("findings")
+    if findings is not None:
+        if not isinstance(findings, list):
+            raise AssertionError("The findings list includes a status line.")
+        for item in findings:
+            question = item.get("question") if isinstance(item, dict) else item
+            if not isinstance(item, dict) or question in _STATUS_LINES:
+                raise AssertionError("The findings list includes a status line.")
+    for row in ReviewFinding.objects.all():
+        if row.question in _STATUS_LINES:
+            raise AssertionError("The findings list includes a status line.")
+    try:
+        url = reverse(
+            "editor:findings",
+            kwargs={"slug": context.story.slug, "number": context.chapter.number},
+        )
+    except NoReverseMatch:
+        return
+    response = context.client.get(url)
+    if response.status_code != 200:
+        return
+    try:
+        body = json.loads(response.content.decode())
+    except json.JSONDecodeError:
+        return
+    for item in body.get("findings", []):
+        question = item.get("question") if isinstance(item, dict) else item
+        if question in _STATUS_LINES:
+            raise AssertionError("The findings list includes a status line.")
+
+
+def _stored_finding(context, question):
+    return ReviewFinding.objects.get(chapter=context.chapter, question=question)
+
+
+def _request_path(url):
+    return url.split("?", 1)[0].rstrip("/")
+
+
+def _is_autosave(request):
+    return request.method == "POST" and _request_path(request.url).endswith("/autosave")
+
+
+def _prepare_browser(context):
+    if not getattr(context, "page", None):
+        _open_editor(context)
+    _require_surface(context)
+
+
+def _press_review(page):
+    button = page.locator("#review-chapter")
+    if button.count() == 0:
+        raise AssertionError(
+            "Issue #5 (review panel): the chapter page has no keyboard Review control."
+        )
+    button.focus()
+    page.keyboard.press("Enter")
+
+
+def _install_save_route(context, page):
+    if getattr(context, "_save_route", False):
+        return
+    context._save_route = True
+    context.traffic = []
+    context.held_routes = []
+
+    def handle(route):
+        request = route.request
+        path = _request_path(request.url)
+        if request.method == "POST" and path.endswith("/autosave"):
+            context.traffic.append("autosave")
+            if getattr(context, "save_will_fail", False):
+                route.fulfill(
+                    status=500,
+                    body="Failed",
+                    content_type="text/plain; charset=utf-8",
+                )
+                return
+            if getattr(context, "save_held", False):
+                context.held_routes.append(route)
+                return
+        if request.method == "POST" and path.endswith("/review"):
+            context.traffic.append("review")
+        route.continue_()
+
+    page.route("**/*", handle)
+
+
+def _type_prefix(context, prefix):
+    _prepare_browser(context)
+    page = _browser_page(context)
+    _install_save_route(context, page)
+    page.locator("#manuscript").focus()
+    page.keyboard.press("Home")
+    page.keyboard.type(prefix)
+    context.typed_prefix = prefix
+
+
+def _status_text(page):
+    status = page.locator("#review-status")
+    if status.count() == 0:
+        return ""
+    return status.inner_text().strip()
+
+
+def _wait_status(page, text):
+    try:
+        page.wait_for_function(
+            """(expected) => {
+              const el = document.getElementById("review-status");
+              return !!el && el.textContent.trim() === expected;
+            }""",
+            arg=text,
+            timeout=8000,
+        )
+    except PlaywrightTimeout:
+        raise AssertionError(
+            f"The review status line says {_status_text(page)!r}, expected {text!r}."
+        ) from None
+
+
 @given('I am writing chapter "{title}" of "{story_title}" as "{username}"')
 def step_writing(context, title, story_title, username):
     user = User.objects.create_user(username=username, password="securepass123")
@@ -713,6 +923,7 @@ def step_stub_rewrite(context, rewrite):
 
 
 @given("the OpenAI client is stubbed to be unavailable")
+@when("the OpenAI client is stubbed to be unavailable")
 def step_stub_down(context):
     _install_stub(context, OpenAIError("unavailable"))
 
@@ -818,6 +1029,10 @@ def step_no_review_control(context):
 
 @then("the chapter page does not say there are no gaps")
 def step_not_all_clear(context):
+    browser = getattr(context, "_page", None)
+    if browser is not None:
+        _no_all_clear(browser.locator("body").inner_text())
+        return
     _no_all_clear(_visible_page(_parse(context.page)))
 
 
@@ -903,6 +1118,13 @@ def step_no_write_route(context):
 
 @then('the review panel shows "{question}"')
 def step_panel_shows(context, question):
+    browser = getattr(context, "_page", None)
+    if browser is not None:
+        browser.locator("#review-panel").get_by_text(question).first.wait_for(
+            timeout=8000
+        )
+        assert question not in browser.locator("#manuscript").input_value()
+        return
     parser, panel = _require_panel(context)
     assert question in panel.visible()
     assert question not in _manuscript(parser)
@@ -957,6 +1179,11 @@ def step_nothing_to_check(context):
 def step_no_invented(context, marker):
     context.chapter.refresh_from_db()
     assert marker not in context.chapter.content
+    browser = getattr(context, "_page", None)
+    if browser is not None:
+        assert marker not in browser.locator("body").inner_text()
+        assert marker not in browser.locator("#manuscript").input_value()
+        return
     assert marker not in context.page
     parser = _parse(context.page)
     assert marker not in _manuscript(parser)
@@ -976,6 +1203,7 @@ def step_request_review(context):
             "Fail closed: Issue #6 (review API): editor:review is not registered, "
             "so this scenario is not skipped and does not pass."
         )
+    _snapshot_findings(context)
     context.response = context.client.post(
         url,
         data=b"",
@@ -1052,17 +1280,11 @@ def step_dismissed_only(context):
     assert context.chapter.content == context.original_body
 
 
-@then("the review is recorded as not run and not as zero findings")
-def step_not_run(context):
+@then("the review is recorded as a provider error")
+def step_provider_error(context):
     payload = _payload(context)
-    raw = context.response.content.decode()
-    lowered = raw.casefold()
+    lowered = context.response.content.decode().casefold()
     assert payload["status"] == "gap"
-    assert payload["message"] == _NOTHING_PROVED
-    assert payload.get("findings") != []
-    assert "findings" not in payload
-    assert '"findings": []' not in raw
-    assert '"findings":[]' not in raw
     for phrase in _ALL_CLEAR:
         assert phrase not in lowered
     assert ReviewFinding.objects.count() == 0
@@ -1126,6 +1348,10 @@ def step_below_fold(context, passage):
 
 
 @given(
+    'the OpenAI client is stubbed to return the question "{question}" '
+    'quoted as "{quote}"'
+)
+@when(
     'the OpenAI client is stubbed to return the question "{question}" '
     'quoted as "{quote}"'
 )
@@ -1296,3 +1522,476 @@ def step_no_jump(context):
             "The finding row has a Jump control. "
             "A disabled Jump does not count as absent."
         )
+
+
+@given("a review response carries state")
+def step_review_carries_state(context):
+    _require_review_state()
+
+
+@given("the OpenAI client is stubbed to return no findings")
+@when("the OpenAI client is stubbed to return no findings")
+def step_stub_no_findings(context):
+    _install_stub(context, _completion(json.dumps({"findings": []})))
+
+
+@given(
+    'the OpenAI client is stubbed to hold the question "{question}" '
+    'quoted as "{quote}"'
+)
+def step_hold_quoted(context, question, quote):
+    context.question = question
+    context.quote = quote
+    payload = json.dumps({"findings": [{"quote": quote, "question": question}]})
+    _install_provider(context, HoldingProvider(_completion(payload)))
+
+
+@given("the OpenAI client is stubbed to return two open questions")
+def step_two_questions(context):
+    first = "Does the river stay in the valley?"
+    second = "Does the morning stay quiet?"
+    context.question = first
+    context.second_question = second
+    payload = json.dumps(
+        {
+            "findings": [
+                {"quote": "The river kept its course", "question": first},
+                {"quote": "the quiet valley", "question": second},
+            ]
+        }
+    )
+    _install_stub(context, _completion(payload))
+
+
+@given('an open finding "{question}" is already stored on that chapter')
+def step_stored_open(context, question):
+    context.question = question
+    fields = {
+        "chapter": context.chapter,
+        "asked_by": context.user,
+        "anchor": "The river kept its course",
+        "question": question,
+        "status": ReviewFinding.Status.OPEN,
+        "model": "gpt-test-model",
+        "kind": ReviewFinding.Kind.QUESTION,
+    }
+    if _named_field("quote") is not None:
+        fields["quote"] = "The river kept its course"
+    if _named_field("start_offset") is not None:
+        fields["start_offset"] = 0
+    row = ReviewFinding.objects.create(**fields)
+    context.finding_id = row.id
+    context.finding_snapshot = {
+        "anchor": row.anchor,
+        "question": row.question,
+        "model": row.model,
+        "kind": row.kind,
+        "chapter_id": row.chapter_id,
+        "asked_by_id": row.asked_by_id,
+    }
+
+
+@when("I run the review from the keyboard in the browser")
+def step_browser_review(context):
+    _prepare_browser(context)
+    page = _browser_page(context)
+    _snapshot_findings(context)
+    if getattr(context, "save_will_fail", False) or getattr(
+        context, "save_held", False
+    ):
+        try:
+            with page.expect_request(_is_autosave, timeout=8000):
+                _press_review(page)
+        except PlaywrightTimeout:
+            raise AssertionError(_SAVE_ORDER) from None
+        return
+    _press_review(page)
+    holder = getattr(context, "holder", None)
+    if holder is not None and not holder.release.is_set():
+        if not holder.entered.wait(timeout=8):
+            raise AssertionError(
+                "The review did not reach the model while the response was held."
+            )
+
+
+@when("I run the review from the keyboard in the browser again")
+def step_browser_review_again(context):
+    page = context._page
+    _press_review(page)
+    page.evaluate(
+        "() => new Promise((resolve) => requestAnimationFrame(() => "
+        "requestAnimationFrame(resolve)))"
+    )
+
+
+@when("the held review response is released")
+def step_release_held(context):
+    context.holder.release.set()
+
+
+@when('I type "{prefix}" at the start of the chapter while the save is held')
+def step_type_held(context, prefix):
+    context.save_held = True
+    context.save_will_fail = False
+    _type_prefix(context, prefix)
+
+
+@when('I type "{prefix}" at the start of the chapter and the save will fail')
+def step_type_fail(context, prefix):
+    context.save_held = False
+    context.save_will_fail = True
+    _type_prefix(context, prefix)
+
+
+@when("the next dismiss request will fail")
+def step_dismiss_will_fail(context):
+    context.dismiss_should_fail = True
+    page = context._page
+
+    def handle(route):
+        if context.dismiss_should_fail:
+            route.fulfill(status=500, content_type="application/json", body="{}")
+            return
+        route.continue_()
+
+    page.route("**/*dismiss/**", handle)
+
+
+@when("dismiss requests succeed again")
+def step_dismiss_succeeds(context):
+    context.dismiss_should_fail = False
+
+
+@when('I dismiss the finding "{question}" from the keyboard in the browser')
+def step_browser_dismiss(context, question):
+    page = context._page
+    button = page.get_by_role("button", name=f"Dismiss {question}")
+    button.wait_for(timeout=8000)
+    button.focus()
+    page.keyboard.press("Enter")
+    context.dismissed_question = question
+
+
+@then("the rows that loaded with the page are cleared before the new rows show")
+def step_rows_cleared(context):
+    count = context._page.locator(".review-finding").count()
+    if count != 0:
+        raise AssertionError(
+            "Rows that loaded with the page are still showing while the "
+            "new review has not arrived."
+        )
+
+
+@then('the open finding "{question}" is shown once')
+def step_shown_once(context, question):
+    page = context._page
+    rows = page.locator(".review-finding", has_text=question)
+    try:
+        rows.first.wait_for(timeout=8000)
+    except PlaywrightTimeout:
+        raise AssertionError(f"The review panel does not show {question!r}.") from None
+    assert rows.count() == 1, f"The finding is shown {rows.count()} times."
+
+
+@then("the save finishes before the review request")
+def step_save_finishes_first(context):
+    if context.traffic[:1] != ["autosave"] or not context.held_routes:
+        raise AssertionError(_SAVE_ORDER)
+    try:
+        with context._page.expect_request(
+            lambda request: request.method == "POST"
+            and _request_path(request.url).endswith("/review"),
+            timeout=8000,
+        ):
+            context.held_routes.pop(0).continue_()
+    except PlaywrightTimeout:
+        raise AssertionError(_SAVE_ORDER) from None
+    if context.traffic[0] != "autosave" or "review" not in context.traffic:
+        raise AssertionError(_SAVE_ORDER)
+
+
+@then("the review offset matches the on-screen text")
+def step_offset_matches(context):
+    page = context._page
+    try:
+        page.locator(".review-jump").first.wait_for(timeout=8000)
+    except PlaywrightTimeout:
+        raise AssertionError(_SAVE_ORDER) from None
+    value = page.locator("#manuscript").input_value()
+    quote = context.quote
+    if quote not in value:
+        raise AssertionError(_SAVE_ORDER)
+    expected = _utf16_len(value[: value.find(quote)])
+    raw = page.locator(".review-jump").first.get_attribute("data-start-offset")
+    if raw is None or int(raw) != expected:
+        raise AssertionError(_SAVE_ORDER)
+    calls = context.stub.calls
+    if not calls or value not in calls[-1]["user"]:
+        raise AssertionError(_SAVE_ORDER)
+
+
+@then('the status line says "{text}" and only one review request was sent')
+def step_reviewing_once(context, text):
+    page = context._page
+    actual = _status_text(page)
+    posts = len(context.review_posts)
+    problems = []
+    if actual != text:
+        problems.append(f"The status line says {actual!r}, expected {text!r}.")
+    if posts != 1:
+        problems.append(f"{posts} review requests were sent.")
+    if problems:
+        raise AssertionError(" ".join(problems))
+
+
+@then("that finding is still in the review panel")
+def step_finding_remains(context):
+    panel = context._page.locator("#review-panel").inner_text()
+    assert context.dismissed_question in panel
+
+
+@then('the review status line says "{text}"')
+def step_status_says(context, text):
+    _wait_status(context._page, text)
+
+
+@then("the review status line is blank")
+def step_status_blank(context):
+    page = context._page
+    try:
+        page.locator(".review-finding").first.wait_for(timeout=8000)
+    except PlaywrightTimeout:
+        raise AssertionError(
+            "The review panel has no question row, so the status line "
+            f"cannot be checked. It says {_status_text(page)!r}."
+        ) from None
+    actual = _status_text(page)
+    assert actual == "", f"The review status line says {actual!r}."
+
+
+@then('the review status line does not say "{sentence}"')
+def step_status_omits(context, sentence):
+    actual = _status_text(context._page)
+    assert sentence not in actual, f"The review status line says {actual!r}."
+
+
+@then('"{sentence}" stays under the Review heading')
+def step_authorship_stays(context, sentence):
+    page = context._page
+    authorship = page.locator(".review-authorship")
+    assert authorship.count() == 1
+    assert authorship.inner_text().strip() == sentence
+    follows = page.evaluate(
+        """(sentence) => {
+          const heading = document.getElementById("review-heading");
+          const auth = document.querySelector(".review-authorship");
+          if (!heading || !auth) {
+            return false;
+          }
+          const after = heading.compareDocumentPosition(auth)
+            & Node.DOCUMENT_POSITION_FOLLOWING;
+          return Boolean(after) && auth.textContent.trim() === sentence;
+        }""",
+        sentence,
+    )
+    assert follows, f"{sentence!r} is not under the Review heading."
+
+
+@then("no review request was sent")
+def step_no_review_request(context):
+    context._page.evaluate(
+        "() => new Promise((resolve) => requestAnimationFrame(() => "
+        "requestAnimationFrame(resolve)))"
+    )
+    posts = list(getattr(context, "review_posts", []))
+    traffic = list(getattr(context, "traffic", []))
+    if posts or "review" in traffic:
+        raise AssertionError(
+            "A review request was sent after the save failed. "
+            f"Review posts: {len(posts)}."
+        )
+
+
+@then('keyboard focus is on the finding "{question}"')
+def step_focus_finding(context, question):
+    try:
+        context._page.wait_for_function(
+            """(expected) => {
+              const active = document.activeElement;
+              if (!active) {
+                return false;
+              }
+              const row = active.closest(".review-finding");
+              return Boolean(row && row.textContent.includes(expected));
+            }""",
+            arg=question,
+            timeout=8000,
+        )
+    except PlaywrightTimeout:
+        active = context._page.evaluate(
+            "() => document.activeElement ? document.activeElement.id : ''"
+        )
+        raise AssertionError(
+            f"Keyboard focus is on {active!r}, not the finding {question!r}."
+        ) from None
+
+
+@then("keyboard focus is on the Review heading")
+def step_focus_heading(context):
+    try:
+        context._page.wait_for_function(
+            """() => document.activeElement
+              && document.activeElement.id === "review-heading" """,
+            timeout=8000,
+        )
+    except PlaywrightTimeout:
+        active = context._page.evaluate(
+            "() => document.activeElement ? document.activeElement.id : ''"
+        )
+        raise AssertionError(
+            f"Keyboard focus is on {active!r}, not the Review heading."
+        ) from None
+
+
+@then('the review panel says exactly "{sentence}"')
+def step_panel_exact(context, sentence):
+    page = context._page
+    try:
+        page.wait_for_function(
+            """(expected) => {
+              const el = document.getElementById("review-status");
+              return Boolean(el && el.textContent.trim() === expected);
+            }""",
+            arg=sentence,
+            timeout=8000,
+        )
+    except PlaywrightTimeout:
+        raise AssertionError(
+            f"The review panel says {_status_text(page)!r}, expected {sentence!r}."
+        ) from None
+
+
+@then('the review panel does not say "{sentence}"')
+def step_panel_omits(context, sentence):
+    text = context._page.locator("#review-panel").inner_text()
+    assert sentence not in text, f"The review panel says {text!r}."
+
+
+@then("the review panel shows no question row and no Dismiss")
+def step_no_question_row(context):
+    page = context._page
+    assert page.locator(".review-finding").count() == 0
+    name = re.compile(r"\bdismiss\b", re.I)
+    assert page.get_by_role("button", name=name).count() == 0
+    assert page.get_by_role("link", name=name).count() == 0
+
+
+@then('the review state is "{state}"')
+def step_review_state(context, state):
+    _require_review_state()
+    if state not in _REVIEW_STATES:
+        raise AssertionError(
+            f"Review state {state!r} is not ran, failed, empty, or off."
+        )
+    payload = _payload(context)
+    actual = payload.get("state")
+    assert actual == state, f"The review state is {actual!r}."
+    if state == "ran":
+        if payload.get("findings"):
+            message = payload.get("message")
+            assert message == "", (
+                "A ran review that returns questions sends an empty message. "
+                f"The message is {message!r}."
+            )
+    elif state == "failed":
+        pass
+    elif state == "empty":
+        pass
+    elif state == "off":
+        pass
+    else:
+        raise AssertionError(
+            f"Review state {state!r} is not ran, failed, empty, or off."
+        )
+    _assert_no_status_line(context, payload)
+
+
+@then('the review records one open finding for "{question}"')
+def step_one_open_for(context, question):
+    _require_review_state()
+    payload = _payload(context)
+    assert payload.get("state") == "ran"
+    findings = payload["findings"]
+    assert len(findings) == 1
+    row = findings[0]
+    assert row["question"] == question
+    assert row["status"] == "open"
+    stored = _stored_finding(context, question)
+    assert stored.status == ReviewFinding.Status.OPEN
+    context.finding_id = stored.id
+    context.question = question
+    context.finding_snapshot = {
+        "anchor": stored.anchor,
+        "question": stored.question,
+        "model": stored.model,
+        "kind": stored.kind,
+        "chapter_id": stored.chapter_id,
+        "asked_by_id": stored.asked_by_id,
+    }
+
+
+@then('the review returns only the open finding "{question}"')
+def step_returns_only(context, question):
+    payload = _payload(context)
+    assert payload.get("state") == "ran"
+    questions = [row.get("question") for row in payload.get("findings", [])]
+    assert questions == [question], questions
+
+
+@then("the review returns no findings")
+def step_returns_no_findings(context):
+    payload = _payload(context)
+    assert payload.get("state") == "ran"
+    assert payload.get("findings") == []
+
+
+@then("the review stores no new finding row")
+@then("the quiet run stores no finding row")
+def step_no_new_finding_row(context):
+    before = getattr(context, "finding_ids_before_request", None)
+    current = set(ReviewFinding.objects.values_list("id", flat=True))
+    if before is None:
+        assert not current, f"The review stored finding rows {sorted(current)}."
+        return
+    assert current == before, (
+        "The review stored a finding row. "
+        f"Before {sorted(before)}, after {sorted(current)}."
+    )
+
+
+@then('the finding "{question}" is superseded')
+def step_superseded(context, question):
+    assert _stored_finding(context, question).status == "superseded"
+
+
+@then('the finding "{question}" is still open')
+def step_still_open(context, question):
+    assert _stored_finding(context, question).status == ReviewFinding.Status.OPEN
+
+
+@then('the finding "{question}" is still dismissed')
+def step_still_dismissed(context, question):
+    stored = _stored_finding(context, question)
+    assert stored.status == ReviewFinding.Status.DISMISSED
+
+
+@then('the review invents no finding "{marker}"')
+def step_invents_none(context, marker):
+    raw = context.response.content.decode()
+    assert marker not in raw
+    context.chapter.refresh_from_db()
+    assert marker not in context.chapter.content
+    for row in ReviewFinding.objects.all():
+        assert marker not in (row.question or "")
+        assert marker not in (row.anchor or "")
+        assert marker not in (getattr(row, "quote", None) or "")
