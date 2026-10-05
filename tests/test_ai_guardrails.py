@@ -608,7 +608,7 @@ class TestModelNeverWrites:
         from editor import urls as editor_urls
 
         names = {pattern.name for pattern in editor_urls.urlpatterns}
-        assert names == {"edit", "autosave", "assist", "review", "dismiss"}
+        assert names == {"edit", "autosave", "assist", "review", "dismiss", "findings"}
         for name in names:
             assert "replace" not in name
             assert "confirm" not in name

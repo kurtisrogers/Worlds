@@ -37,9 +37,10 @@ def review_instructions() -> str:
         + "Return questions and locations in the writer's existing text.\n"
         + "Do not return replacement prose.\n"
         + "Reply with JSON only. "
-        + "Each finding has an anchor and a question: "
-        + '{"findings":[{"anchor":"exact words already in the chapter",'
+        + "Each finding has a quote and a question: "
+        + '{"findings":[{"quote":"exact words already in the chapter",'
         + '"question":"a question?"}]}\n'
+        + "The quote is a verbatim excerpt of at most 120 characters. "
         + "Locations must be copied from the chapter. "
         + "If nothing is proved, return an empty findings list."
     )

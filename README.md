@@ -71,6 +71,8 @@ See `.env.example` for Stripe, Google OAuth, and database configuration.
 
 AI assist is off by default. `OPENAI_API_KEY` is read from the environment or from secrets. It is not committed and it is not sent to the browser. The product rules are in `docs/authors/ai-partner.md`.
 
+A review finding may include `quote` and `start_offset`. `start_offset` counts UTF-16 code units from the start of the chapter, the same index a browser textarea or contenteditable caret uses. The server sets it by finding that quote verbatim in the chapter that was reviewed. If the quote is not there, the finding is stored with no anchor. When findings are read, `anchor_status` is `ok`, `changed`, or `none` against the current chapter text. That read does not change the chapter or the stored finding.
+
 ## Mission
 
 Create the next generation of creatives. Do away with algorithms and predictive successes. Let readers decide what deserves to be published.

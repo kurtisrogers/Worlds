@@ -95,8 +95,8 @@ def _questions_payload():
     return json.dumps(
         {
             "findings": [
-                {"anchor": ANCHOR_ONE, "question": QUESTION_ONE},
-                {"anchor": ANCHOR_TWO, "question": QUESTION_TWO},
+                {"quote": ANCHOR_ONE, "question": QUESTION_ONE},
+                {"quote": ANCHOR_TWO, "question": QUESTION_TWO},
             ]
         }
     )

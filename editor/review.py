@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db import transaction
 
 from editor import assist
+from editor.anchors import place_quote, present_finding
 from editor.models import AICall, ReviewFinding
 from editor.openai_provider import OpenAIError, OpenAIQuota, OpenAITimeout
 from editor.policy import review_instructions, review_prompt
@@ -16,12 +17,10 @@ logger = logging.getLogger(__name__)
 
 GAP = "Nothing proved. The chapter text is unchanged."
 REWRITE_NOTE = "The model returned replacement prose. Nothing was applied."
-_MAX_ANCHOR = 280
 _MAX_QUESTION = 400
 _MAX_NOVEL = 80
 _LONG_QUESTION = 80
 _QUOTE = 12
-_GAP_ANCHOR = 80
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 _REWRITE_KEYS = frozenset(
     {
@@ -97,7 +96,7 @@ def run_review(*, user, chapter):
             {
                 "status": "ok",
                 "message": assist.AUTHORSHIP,
-                "findings": [_public_finding(row) for row in rows],
+                "findings": [present_finding(row, chapter.content) for row in rows],
             },
         )
 
@@ -110,7 +109,7 @@ def run_review(*, user, chapter):
         {
             "status": "gap",
             "message": GAP,
-            "gap_note": _public_finding(gap),
+            "gap_note": present_finding(gap, chapter.content),
         },
     )
 
@@ -151,13 +150,15 @@ def _store_questions(*, chapter, user, model, pairs):
             ReviewFinding.objects.create(
                 chapter=chapter,
                 asked_by=user,
-                anchor=anchor,
+                anchor=quote or "",
+                quote=quote,
+                start_offset=offset,
                 question=question,
                 status=ReviewFinding.Status.OPEN,
                 model=model,
                 kind=ReviewFinding.Kind.QUESTION,
             )
-            for anchor, question in pairs
+            for quote, offset, question in pairs
         ]
 
 
@@ -165,31 +166,14 @@ def _store_gap(*, chapter, user, model, question):
     return ReviewFinding.objects.create(
         chapter=chapter,
         asked_by=user,
-        anchor=_gap_anchor(chapter.content),
+        anchor="",
+        quote=None,
+        start_offset=None,
         question=question,
         status=ReviewFinding.Status.OPEN,
         model=model,
         kind=ReviewFinding.Kind.GAP,
     )
-
-
-def _public_finding(row):
-    return {
-        "id": row.id,
-        "anchor": row.anchor,
-        "question": row.question,
-        "status": row.status,
-        "model": row.model,
-    }
-
-
-def _gap_anchor(content):
-    if not content:
-        return ""
-    anchor = content[:_GAP_ANCHOR]
-    if anchor not in content:
-        return ""
-    return anchor
 
 
 def _interpret(text, chapter_content):
@@ -239,27 +223,25 @@ def _contains_rewrite_key(value):
 
 
 def _question(item, chapter_content):
-    if not isinstance(item, dict) or set(item) != {"anchor", "question"}:
+    if not isinstance(item, dict) or set(item) != {"quote", "question"}:
         return None
-    anchor = item["anchor"]
+    quote = item["quote"]
     question = item["question"]
-    if not isinstance(anchor, str) or not isinstance(question, str):
+    if not isinstance(quote, str) or not isinstance(question, str):
         return None
-    anchor = anchor.strip()
     question = question.strip()
     if (
-        not anchor
-        or anchor not in chapter_content
-        or len(anchor) > _MAX_ANCHOR
-        or "?" not in question
+        "?" not in question
         or "." in question
         or "\n" in question
+        or not question
         or len(question) > _MAX_QUESTION
         or _novel_span(question, chapter_content) > _MAX_NOVEL
         or _rewrites_the_chapter(question, chapter_content)
     ):
         return None
-    return anchor, question
+    stored, offset = place_quote(chapter_content, quote.strip())
+    return stored, offset, question
 
 
 def _rewrites_the_chapter(question, chapter_content):
