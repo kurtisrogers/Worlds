@@ -62,6 +62,13 @@ assert.strictEqual(empty.message, NOTHING_YET);
 assert.strictEqual(empty.replace, false);
 assert.ok(!empty.message.includes("Nothing proved"));
 
+const blankServerMessage = review.interpretReview({
+  state: "ran",
+  message: "",
+  findings: [{ id: 7, question: QUESTION, anchor_status: "ok", start_offset: 0 }],
+});
+assert.strictEqual(blankServerMessage.message, "");
+
 const found = review.interpretReview({
   state: "ran",
   message: AUTHORSHIP,
@@ -77,7 +84,7 @@ const found = review.interpretReview({
   ],
 });
 assert.strictEqual(found.state, "ran");
-assert.strictEqual(found.message, AUTHORSHIP);
+assert.strictEqual(found.message, "");
 assert.strictEqual(found.findings[0].question, QUESTION);
 assert.strictEqual(found.replace, true);
 
@@ -282,7 +289,11 @@ const blockedResult = review.beginReview(
 );
 assert.strictEqual(blockedResult, null);
 assert.strictEqual(blocked.length, 0);
-assert.strictEqual(blockedDoc.status.text, "");
+assert.strictEqual(
+  blockedDoc.status.text,
+  "Your chapter didn't save, so the review didn't run."
+);
+assert.strictEqual(blockedDoc.panel.hidden, false);
 assert.strictEqual(blockedDoc.field.value, CHAPTER);
 
 function rowText(item) {
@@ -309,7 +320,7 @@ review.showReviewResponse(shown, {
 });
 assert.strictEqual(shown.field.value, CHAPTER);
 assert.strictEqual(shown.panel.hidden, false);
-assert.strictEqual(shown.status.text, AUTHORSHIP);
+assert.strictEqual(shown.status.text, "");
 assert.strictEqual(shown.list.children.length, 1);
 const item = shown.list.children[0];
 assert.strictEqual(item.attrs["aria-labelledby"], "review-question-3");

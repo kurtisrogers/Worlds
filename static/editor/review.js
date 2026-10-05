@@ -3,7 +3,7 @@ var NO_QUESTIONS = "No questions this time. Your chapter hasn't changed.";
 var NOTHING_YET = "There's nothing to review yet.";
 var REVIEWING = "Reviewing…";
 var DISMISS_FAILED = "Couldn't dismiss. Try again.";
-var AUTHORSHIP = "This is assistance, not authorship.";
+var SAVE_BLOCKED = "Your chapter didn't save, so the review didn't run.";
 var PASSAGE_CHANGED = "This passage has changed";
 var PASSAGE_MISSING = "Can't find this passage in the chapter";
 var reviewBusy = false;
@@ -32,7 +32,6 @@ function copyFor(copy) {
     failed: (copy && copy.failed) || FAILED,
     empty: (copy && copy.empty) || NOTHING_YET,
     noQuestions: (copy && copy.noQuestions) || NO_QUESTIONS,
-    authorship: (copy && copy.authorship) || AUTHORSHIP,
   };
 }
 
@@ -57,7 +56,7 @@ function interpretReview(body, copy) {
       var findings = Array.isArray(body.findings) ? body.findings : [];
       return {
         state: "ran",
-        message: findings.length ? words.authorship : words.noQuestions,
+        message: findings.length ? "" : words.noQuestions,
         findings: findings,
         replace: true,
       };
@@ -213,7 +212,6 @@ function pageCopy(doc) {
     empty: read("data-empty-chapter", NOTHING_YET),
     failed: read("data-did-not-run", FAILED),
     noQuestions: read("data-no-questions", NO_QUESTIONS),
-    authorship: read("data-authorship", AUTHORSHIP),
   };
 }
 
@@ -355,11 +353,17 @@ function beginReview(doc, send, settle) {
     if (!reviewBusy) {
       return;
     }
+    var view = viewFrom(doc);
     if (!saved) {
       reviewBusy = false;
+      if (view.panel) {
+        view.panel.hidden = false;
+      }
+      if (view.statusEl) {
+        view.statusEl.textContent = SAVE_BLOCKED;
+      }
       return;
     }
-    var view = viewFrom(doc);
     if (view.panel) {
       view.panel.hidden = false;
     }
