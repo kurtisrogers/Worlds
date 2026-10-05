@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import os
 import re
 import threading
 from html.parser import HTMLParser
@@ -513,7 +514,13 @@ def _live_server(context):
     return f"http://{thread.host}:{thread.port}"
 
 
+def _allow_sync_db():
+    # Playwright runs the step on a loop. Django still serves the chapter.
+    os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
+
+
 def _browser_page(context):
+    _allow_sync_db()
     if getattr(context, "_page", None) is not None:
         return context._page
     live = _live_server(context)
@@ -589,13 +596,29 @@ def _measure_caret(page):
     return measured
 
 
-def _request_url(node):
-    for key in ("formaction", "hx-post", "data-url"):
+def _declared_url(node):
+    for key in (
+        "formaction",
+        "hx-post",
+        "data-url",
+        "data-review-url",
+        "data-dismiss-url",
+    ):
         value = (node.attrs.get(key) or "").strip()
         if value and not value.startswith("#"):
             return value
+    return ""
+
+
+def _request_url(node):
+    declared = _declared_url(node)
+    if declared:
+        return declared
     parent = node.parent
     while parent is not None:
+        declared = _declared_url(parent)
+        if declared:
+            return declared
         if parent.tag == "form":
             if parent.attrs.get("id") == "chapter-form":
                 return None
