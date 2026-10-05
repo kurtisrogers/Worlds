@@ -54,6 +54,7 @@ class ReviewFinding(models.Model):
     class Status(models.TextChoices):
         OPEN = "open", "Open"
         DISMISSED = "dismissed", "Dismissed"
+        SUPERSEDED = "superseded", "Superseded"
 
     class Kind(models.TextChoices):
         QUESTION = "question", "Question"
@@ -70,6 +71,8 @@ class ReviewFinding(models.Model):
         related_name="review_findings",
     )
     anchor = models.TextField(blank=True)
+    quote = models.CharField(max_length=120, null=True, blank=True)
+    start_offset = models.PositiveIntegerField(null=True, blank=True)
     question = models.TextField()
     status = models.CharField(
         max_length=16,

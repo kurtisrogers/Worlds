@@ -8,11 +8,12 @@ from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
+from editor.anchors import present_finding
 from editor.assist import PROMPT_REJECTION, run_assist
 from editor.models import ReviewFinding
-from editor.review import run_review
+from editor.review import listed_findings, run_review
 from stories.models import Chapter, ContentSource, Story
 
 logger = logging.getLogger(__name__)
@@ -141,6 +142,21 @@ def dismiss_finding(request, slug, number, finding_id):
         finding.status = ReviewFinding.Status.DISMISSED
         finding.save(update_fields=["status"])
     return _assist_json({"status": "dismissed", "id": finding.id}, 200)
+
+
+@login_required
+@require_GET
+def findings(request, slug, number):
+    """Read current open findings. Does not write the chapter or the rows."""
+    story = get_object_or_404(Story, slug=slug, author=request.user)
+    chapter = get_object_or_404(Chapter, story=story, number=number)
+    rows = listed_findings(chapter)
+    return _assist_json(
+        {
+            "findings": [present_finding(row, chapter.content) for row in rows],
+        },
+        200,
+    )
 
 
 def _client_payload(request):

@@ -52,6 +52,8 @@ class ReviewFindingAdmin(admin.ModelAdmin):
         "chapter",
         "asked_by",
         "anchor",
+        "quote",
+        "start_offset",
         "question",
         "status",
         "model",
