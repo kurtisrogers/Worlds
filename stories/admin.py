@@ -2,6 +2,9 @@ from django.contrib import admin
 
 from stories.models import (
     Chapter,
+    ChapterFavourite,
+    ChapterLike,
+    ChapterRead,
     ChapterUnlock,
     ReaderSubscription,
     Story,
@@ -49,3 +52,21 @@ class ReaderSubscriptionAdmin(admin.ModelAdmin):
 @admin.register(ChapterUnlock)
 class ChapterUnlockAdmin(admin.ModelAdmin):
     list_display = ["reader", "chapter", "amount_cents", "unlocked_at"]
+
+
+@admin.register(ChapterRead)
+class ChapterReadAdmin(admin.ModelAdmin):
+    list_display = ["reader", "chapter", "read_at"]
+    list_select_related = ["reader", "chapter"]
+
+
+@admin.register(ChapterLike)
+class ChapterLikeAdmin(admin.ModelAdmin):
+    list_display = ["reader", "chapter", "liked_at"]
+    list_select_related = ["reader", "chapter"]
+
+
+@admin.register(ChapterFavourite)
+class ChapterFavouriteAdmin(admin.ModelAdmin):
+    list_display = ["reader", "chapter", "favourited_at"]
+    list_select_related = ["reader", "chapter"]

@@ -186,6 +186,94 @@ class ReaderSubscription(models.Model):
         return f"{self.reader.username} → {self.story.title} ({self.tier.name})"
 
 
+class ChapterRead(models.Model):
+    """One read of a released chapter by one signed-in reader.
+
+    One row per reader per chapter. Recording that reader again does not
+    add a row. Drafts are not stored.
+    """
+
+    reader = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chapter_reads",
+    )
+    chapter = models.ForeignKey(
+        Chapter,
+        on_delete=models.CASCADE,
+        related_name="reads",
+    )
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-read_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reader", "chapter"],
+                name="unique_chapter_read_per_reader",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.reader.username} read {self.chapter}"
+
+
+class ChapterLike(models.Model):
+    """One like from one reader on one chapter."""
+
+    reader = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chapter_likes",
+    )
+    chapter = models.ForeignKey(
+        Chapter,
+        on_delete=models.CASCADE,
+        related_name="likes",
+    )
+    liked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-liked_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reader", "chapter"],
+                name="unique_chapter_like_per_reader",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.reader.username} liked {self.chapter}"
+
+
+class ChapterFavourite(models.Model):
+    """One favourite from one reader on one chapter."""
+
+    reader = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chapter_favourites",
+    )
+    chapter = models.ForeignKey(
+        Chapter,
+        on_delete=models.CASCADE,
+        related_name="favourites",
+    )
+    favourited_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-favourited_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reader", "chapter"],
+                name="unique_chapter_favourite_per_reader",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.reader.username} favourited {self.chapter}"
+
+
 class ChapterUnlock(models.Model):
     """One-time chapter purchase by a reader."""
 
