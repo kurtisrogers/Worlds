@@ -119,7 +119,7 @@ def run_review(*, user, chapter):
             {
                 "status": "ok",
                 "state": "ran",
-                "message": assist.AUTHORSHIP,
+                "message": "",
                 "findings": [present_finding(row, chapter.content) for row in rows],
             },
         )

@@ -40,7 +40,6 @@ DID_NOT_RUN = "The review did not run. Your chapter hasn't changed."
 NOTHING_TO_REVIEW = "There's nothing to review yet."
 FLAG_OFF = "AI assist is off."
 REWRITE_NOTE = "The model returned replacement prose. Nothing was applied."
-AUTHORSHIP = "This is assistance, not authorship."
 PROMPT_REJECTION = "The client cannot set the system prompt."
 SPEND_REJECTION = "A configured spend cap rejected this call."
 SECRET = "sk-test-not-a-real-key"
@@ -300,7 +299,8 @@ class TestReviewRecords:
         body = _json(response)
         assert body["status"] == "ok"
         assert body["state"] == "ran"
-        assert body["message"] == AUTHORSHIP
+        assert body["message"] == ""
+        assert body["findings"]
         assert [item["question"] for item in body["findings"]] == [
             QUESTION_ONE,
             QUESTION_TWO,
