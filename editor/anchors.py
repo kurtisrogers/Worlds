@@ -26,6 +26,13 @@ def resolve_anchor(chapter, quote, start_offset):
     """Compare a stored anchor with the chapter as it is now.
 
     Returns (anchor_status, start_offset or None). Does not write anything.
+
+    ok, with an offset: the quote is at the stored offset, or it is not
+    there and occurs exactly once elsewhere. The returned offset is the
+    location in the current text and is not written back.
+    changed, with no offset: the quote no longer appears anywhere.
+    none, with no offset: the finding never had an anchor, or the quote
+    now appears more than once and is not at the stored offset.
     """
     if not quote:
         return "none", None
@@ -34,7 +41,9 @@ def resolve_anchor(chapter, quote, start_offset):
     matches = _find_all(chapter, quote)
     if len(matches) == 1:
         return "ok", utf16_len(chapter[: matches[0]])
-    return "changed", None
+    if not matches:
+        return "changed", None
+    return "none", None
 
 
 def present_finding(row, chapter):

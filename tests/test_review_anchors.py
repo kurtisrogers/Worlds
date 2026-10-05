@@ -226,7 +226,7 @@ class TestAnchorStatus:
         assert chapter.content == moved
         assert chapter.updated_at == seen
 
-    def test_duplicate_quote_is_changed_with_no_offset(
+    def test_duplicate_quote_is_none_with_no_offset(
         self, client_logged_in, story, chapter, settings, monkeypatch
     ):
         _set_chapter(chapter, "Intro " + QUOTE + " end.")
@@ -241,7 +241,7 @@ class TestAnchorStatus:
         seen = chapter.updated_at
 
         item = _json(_list(client_logged_in, story))["findings"][0]
-        assert item["anchor_status"] == "changed"
+        assert item["anchor_status"] == "none"
         assert item["start_offset"] is None
         assert item["quote"] == QUOTE
         row.refresh_from_db()
