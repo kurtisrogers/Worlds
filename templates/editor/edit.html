@@ -17,7 +17,16 @@
   data-label-saving="{{ saving_label }}"
   data-label-saved="{{ saved_label }}"
   data-label-failed="{{ failed_label }}"
+  {% if ai_assist_enabled %}
+  data-review-url="{% url 'editor:review' slug=story.slug number=chapter.number %}"
+  data-empty-chapter="{{ empty_chapter_message }}"
+  data-did-not-run="{{ did_not_run_message }}"
+  data-no-questions="{{ no_questions_message }}"
+  data-passage-changed="{{ passage_changed_message }}"
+  data-passage-missing="{{ passage_missing_message }}"
+  {% endif %}
 >
+  {% if ai_assist_enabled %}<div class="editor-layout">{% endif %}
   <div class="editor-column">
     <div class="editor-tools">
       <a id="back-to-book" class="editor-back" href="{% url 'stories:manage' slug=story.slug %}">Back to {{ story.title }}</a>
@@ -28,6 +37,9 @@
             <option value="{% url 'editor:edit' slug=story.slug number=ch.number %}" {% if ch.number == chapter.number %}selected{% endif %}>Ch. {{ ch.number }}: {{ ch.title }}</option>
           {% endfor %}
         </select>
+        {% if ai_assist_enabled %}
+        <button type="button" id="review-chapter" class="editor-review">Review</button>
+        {% endif %}
       </div>
     </div>
     <form
@@ -70,9 +82,46 @@
       >{{ chapter.content }}</textarea>
     </form>
   </div>
+  {% if ai_assist_enabled %}
+  <div
+    id="review-panel"
+    class="review-panel"
+    role="region"
+    aria-labelledby="review-heading"
+    {% if not open_findings %}hidden{% endif %}
+  >
+    <h2 id="review-heading" class="review-heading" tabindex="-1">Review</h2>
+    <p class="review-authorship">{{ authorship_message }}</p>
+    <p id="review-status" class="review-status" role="status" aria-live="polite"></p>
+    <ol id="review-findings" class="review-findings">
+      {% for finding in open_findings %}
+      <li
+        class="review-finding"
+        data-finding-id="{{ finding.id }}"
+        data-anchor-status="{{ finding.anchor_status }}"
+        tabindex="-1"
+        aria-labelledby="review-question-{{ finding.id }}"
+      >
+        <p id="review-question-{{ finding.id }}" class="review-question">{{ finding.question }}</p>
+        {% if finding.anchor_note %}
+        <p class="review-anchor-note">{{ finding.anchor_note }}</p>
+        {% endif %}
+        {% if finding.can_jump %}
+        <button type="button" class="review-jump" data-start-offset="{{ finding.start_offset }}" aria-label="Jump to {{ finding.question }}">Jump</button>
+        {% endif %}
+        <button type="button" class="review-dismiss" data-dismiss-url="{% url 'editor:dismiss' slug=story.slug number=chapter.number finding_id=finding.id %}" aria-label="Dismiss {{ finding.question }}">Dismiss</button>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'editor/autosave.js' %}"></script>
+{% if ai_assist_enabled %}
+<script src="{% static 'editor/review.js' %}"></script>
+{% endif %}
 {% endblock %}

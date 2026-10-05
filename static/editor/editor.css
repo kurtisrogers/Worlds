@@ -151,6 +151,116 @@
 .dark .editor-back,
 .dark .editor-chapters-name,
 .dark .editor-chapters,
-.dark .editor-status {
+.dark .editor-status,
+.dark .editor-review,
+.dark .review-heading,
+.dark .review-anchor-note,
+.dark .review-jump,
+.dark .review-dismiss {
   color: #a8a29e;
+}
+
+.editor-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+}
+
+.editor-review {
+  margin: 0 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #78716c;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.review-panel {
+  width: 100%;
+  max-width: 70ch;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 1.25rem 3rem;
+  position: static;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #44403c;
+}
+
+.review-heading {
+  margin: 0;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #78716c;
+}
+
+.review-authorship,
+.review-status,
+.review-question,
+.review-anchor-note {
+  margin: 0.35rem 0 0;
+}
+
+.review-findings {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-finding {
+  margin: 0.75rem 0 0;
+}
+
+.review-jump,
+.review-dismiss {
+  margin: 0.35rem 0.75rem 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #78716c;
+  font: inherit;
+  cursor: pointer;
+}
+
+.editor-review:focus,
+.review-heading:focus,
+.review-finding:focus,
+.review-jump:focus,
+.review-dismiss:focus {
+  outline: 2px solid #a8a29e;
+  outline-offset: 3px;
+}
+
+.dark .review-panel {
+  color: #d6d3d1;
+}
+
+@media (min-width: 1100px) {
+  .editor-layout {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2rem;
+  }
+
+  .editor-layout .editor-column {
+    flex: 0 0 70ch;
+    width: 70ch;
+    max-width: 70ch;
+  }
+
+  .review-panel {
+    flex: 0 0 22rem;
+    width: 22rem;
+    max-width: 22rem;
+    padding-top: 1.25rem;
+  }
 }

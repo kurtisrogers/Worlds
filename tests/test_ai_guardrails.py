@@ -153,7 +153,7 @@ class TestFlagOff:
         assert chapter.content == PARAGRAPH + " More."
         assert AICall.objects.count() == 0
 
-    def test_flag_on_still_has_no_review_control_and_page_does_not_call(
+    def test_opening_the_chapter_with_the_flag_on_does_not_call_the_model(
         self, client_logged_in, story, chapter, settings, monkeypatch
     ):
         _enable(settings)
@@ -165,13 +165,16 @@ class TestFlagOff:
         response = client_logged_in.get(_edit_url(story))
         html = response.content.decode()
         assert response.status_code == 200
-        assert [node for node in html.split("<button")][1:] == []
+        assert 'id="review-chapter"' in html
         lowered = html.lower()
-        assert "review" not in lowered
         assert "generate" not in lowered
         assert "openai" not in lowered
+        assert "score" not in lowered
         assert SECRET not in html
         assert _assist_url(story) not in html
+        assert (
+            reverse("editor:review", kwargs={"slug": story.slug, "number": 1}) in html
+        )
 
     def test_assist_while_flag_off_does_not_call_or_edit(
         self, client_logged_in, story, chapter, monkeypatch

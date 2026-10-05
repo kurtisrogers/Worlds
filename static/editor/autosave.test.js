@@ -121,3 +121,114 @@ assert.strictEqual(failedPending.state, "failed");
 assert.strictEqual(failedPending.content, newer);
 assert.strictEqual(failedWhileNewer.textContent, "Failed");
 assert.notStrictEqual(failedWhileNewer.textContent, "");
+
+function editorDocument(content) {
+  const handlers = {};
+  const title = { value: "Dawn" };
+  const manuscript = { value: content };
+  const status = { dataset: {}, textContent: "Saved" };
+  const editor = {
+    getAttribute(name) {
+      return (
+        {
+          "data-label-saving": "Saving",
+          "data-label-saved": "Saved",
+          "data-label-failed": "Failed",
+        }[name] || null
+      );
+    },
+    querySelector(selector) {
+      if (selector === "#save-status") {
+        return status;
+      }
+      if (selector === "#chapter-title") {
+        return title;
+      }
+      if (selector === "#manuscript") {
+        return manuscript;
+      }
+      return null;
+    },
+  };
+  const form = {
+    closest() {
+      return editor;
+    },
+  };
+  return {
+    handlers,
+    title,
+    manuscript,
+    status,
+    form,
+    addEventListener(type, fn) {
+      handlers[type] = fn;
+    },
+    getElementById(id) {
+      if (id === "chapter-title") {
+        return title;
+      }
+      if (id === "manuscript") {
+        return manuscript;
+      }
+      if (id === "save-status") {
+        return status;
+      }
+      if (id === "chapter-editor") {
+        return editor;
+      }
+      if (id === "chapter-form") {
+        return form;
+      }
+      return null;
+    },
+  };
+}
+
+function loadEditor(doc) {
+  global.document = doc;
+  global.window = { location: { assign() {} } };
+  global.htmx = { calls: 0, trigger() { this.calls += 1; } };
+  const resolved = require.resolve("./autosave.js");
+  delete require.cache[resolved];
+  return require("./autosave.js");
+}
+
+function finishRequest(doc, successful, responseText) {
+  const xhr = { responseText };
+  const evt = { detail: { elt: doc.form, successful, xhr } };
+  doc.handlers["htmx:beforeRequest"](evt);
+  doc.handlers["htmx:afterRequest"](evt);
+}
+
+const settledDoc = editorDocument(kept);
+const settledEditor = loadEditor(settledDoc);
+let settled = null;
+settledEditor.finishPendingSave(settledDoc, function (ok) {
+  settled = ok;
+});
+assert.strictEqual(settled, true);
+assert.strictEqual(global.htmx.calls, 0);
+
+settledDoc.manuscript.value = kept + " Extra.";
+settled = null;
+settledEditor.finishPendingSave(settledDoc, function (ok) {
+  settled = ok;
+});
+assert.strictEqual(settled, null);
+assert.strictEqual(global.htmx.calls, 1);
+assert.strictEqual(settledDoc.status.textContent, "Saving");
+finishRequest(settledDoc, true, "Saved");
+assert.strictEqual(settled, true);
+assert.strictEqual(settledDoc.status.textContent, "Saved");
+
+settledDoc.manuscript.value = kept + " Again.";
+settled = null;
+settledEditor.finishPendingSave(settledDoc, function (ok) {
+  settled = ok;
+});
+assert.strictEqual(settled, null);
+finishRequest(settledDoc, false, "Failed");
+assert.strictEqual(settled, false);
+assert.strictEqual(settledDoc.status.textContent, "Failed");
+assert.strictEqual(settledDoc.manuscript.value, kept + " Again.");
