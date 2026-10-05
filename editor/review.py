@@ -15,8 +15,9 @@ from editor.policy import review_instructions, review_prompt
 
 logger = logging.getLogger(__name__)
 
-GAP = "Nothing proved. The chapter text is unchanged."
+NO_QUESTIONS = "No questions this time. Your chapter hasn't changed."
 DID_NOT_RUN = "The review did not run. Your chapter hasn't changed."
+NOTHING_TO_REVIEW = "There's nothing to review yet."
 REWRITE_NOTE = "The model returned replacement prose. Nothing was applied."
 _MAX_QUESTION = 400
 _MAX_NOVEL = 80
@@ -55,11 +56,23 @@ def run_review(*, user, chapter):
 
     A review that stores questions marks this chapter's earlier open
     findings superseded. Dismissed findings stay dismissed. A provider
-    failure stores nothing and supersedes nothing.
+    failure stores nothing and supersedes nothing. An empty chapter
+    does not call the provider, does not write an audit row, and does
+    not supersede findings.
     """
     refused = assist.refusal(user)
     if refused is not None:
         return ReviewResponse(refused.status_code, refused.payload)
+
+    if _chapter_is_empty(chapter):
+        return ReviewResponse(
+            200,
+            {
+                "status": "empty",
+                "state": "empty",
+                "message": NOTHING_TO_REVIEW,
+            },
+        )
 
     call = AICall.objects.create(
         user=user,
@@ -101,6 +114,7 @@ def run_review(*, user, chapter):
             200,
             {
                 "status": "ok",
+                "state": "ran",
                 "message": assist.AUTHORSHIP,
                 "findings": [present_finding(row, chapter.content) for row in rows],
             },
@@ -114,7 +128,8 @@ def run_review(*, user, chapter):
         200,
         {
             "status": "gap",
-            "message": GAP,
+            "state": "ran",
+            "message": NO_QUESTIONS,
             "gap_note": present_finding(gap, chapter.content),
         },
     )
@@ -124,7 +139,10 @@ def _finish(call, outcome, status_code):
     call.outcome = outcome
     call.save(update_fields=["outcome"])
     _log(call)
-    return ReviewResponse(status_code, {"status": "gap", "message": DID_NOT_RUN})
+    return ReviewResponse(
+        status_code,
+        {"status": "gap", "state": "failed", "message": DID_NOT_RUN},
+    )
 
 
 def _save_call(call):
@@ -148,6 +166,10 @@ def _log(call):
         call.chapter_id,
         call.model,
     )
+
+
+def _chapter_is_empty(chapter):
+    return not (chapter.content or "").strip()
 
 
 def _supersede_open(chapter):
@@ -194,7 +216,7 @@ def _interpret(text, chapter_content):
     """Return question pairs, or a gap note that does not contain model prose."""
     stripped = text.strip()
     if not stripped:
-        return [], GAP
+        return [], NO_QUESTIONS
     payload = _load_json(stripped)
     if payload is None or _contains_rewrite_key(payload):
         return [], REWRITE_NOTE
@@ -204,7 +226,7 @@ def _interpret(text, chapter_content):
     if not isinstance(items, list):
         return [], REWRITE_NOTE
     if not items:
-        return [], GAP
+        return [], NO_QUESTIONS
     pairs = []
     for item in items:
         parsed = _question(item, chapter_content)

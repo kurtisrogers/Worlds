@@ -35,8 +35,10 @@ QUESTION_ONE = "Does the river stay in the valley?"
 QUESTION_TWO = "What does the morning hold after this?"
 ANCHOR_ONE = "The river kept its course"
 ANCHOR_TWO = "the morning stayed"
-GAP = "Nothing proved. The chapter text is unchanged."
+NO_QUESTIONS = "No questions this time. Your chapter hasn't changed."
 DID_NOT_RUN = "The review did not run. Your chapter hasn't changed."
+NOTHING_TO_REVIEW = "There's nothing to review yet."
+FLAG_OFF = "AI assist is off."
 REWRITE_NOTE = "The model returned replacement prose. Nothing was applied."
 AUTHORSHIP = "This is assistance, not authorship."
 PROMPT_REJECTION = "The client cannot set the system prompt."
@@ -260,7 +262,8 @@ class TestReviewFlagOff:
         assert response.status_code == 403
         body = _json(response)
         assert body["status"] == "rejected"
-        assert body["message"]
+        assert body["message"] == FLAG_OFF
+        assert "state" not in body
         assert "findings" not in body
         assert stub.calls == []
         assert _snapshot(chapter) == before
@@ -296,6 +299,7 @@ class TestReviewRecords:
         assert response.status_code == 200
         body = _json(response)
         assert body["status"] == "ok"
+        assert body["state"] == "ran"
         assert body["message"] == AUTHORSHIP
         assert [item["question"] for item in body["findings"]] == [
             QUESTION_ONE,
@@ -461,7 +465,9 @@ class TestRewriteIsNotApplied:
         response = _post(client_logged_in, story)
         body = _assert_not_all_clear(response)
         assert body["status"] == "gap"
-        assert body["message"] == GAP
+        assert body["state"] == "ran"
+        assert body["message"] == NO_QUESTIONS
+        assert body["message"] != DID_NOT_RUN
         assert _snapshot(chapter) == before
         assert REWRITE not in _stored_text()
         assert REWRITE not in response.content.decode()
@@ -490,11 +496,13 @@ class TestReviewGaps:
         response = _post(client_logged_in, story)
         body = _assert_not_all_clear(response)
         assert body["status"] == "gap"
-        assert body["message"] == GAP
+        assert body["state"] == "ran"
+        assert body["message"] == NO_QUESTIONS
+        assert body["message"] != DID_NOT_RUN
         assert _snapshot(chapter) == before
         note = ReviewFinding.objects.get()
         assert note.kind == ReviewFinding.Kind.GAP
-        assert note.question == GAP
+        assert note.question == NO_QUESTIONS
         assert note.asked_by == author
         assert note.chapter == chapter
         assert note.status == ReviewFinding.Status.OPEN
@@ -517,7 +525,9 @@ class TestReviewGaps:
         response = _post(client_logged_in, story)
         body = _assert_not_all_clear(response)
         assert body["status"] == "gap"
+        assert body["state"] == "failed"
         assert body["message"] == DID_NOT_RUN
+        assert body["message"] != NO_QUESTIONS
         assert "Nothing proved" not in response.content.decode()
         assert "upstream" not in response.content.decode()
         assert "slow" not in response.content.decode()
@@ -663,6 +673,7 @@ class TestSupersede:
         response = _post(client_logged_in, story)
         body = _assert_not_all_clear(response)
         assert body["status"] == "gap"
+        assert body["state"] == "failed"
         assert body["message"] == DID_NOT_RUN
         assert "findings" not in body
         assert _snapshot(chapter) == before
@@ -680,6 +691,67 @@ class TestSupersede:
         assert saved.status_code == 200
         chapter.refresh_from_db()
         assert chapter.content == PARAGRAPH + " Still mine."
+
+
+@pytest.mark.django_db
+class TestEmptyChapter:
+    @pytest.mark.parametrize("blank", ["", " ", "\n\t  "])
+    def test_blank_chapter_does_not_call_or_supersede(
+        self, client_logged_in, story, chapter, settings, monkeypatch, blank
+    ):
+        _enable(settings)
+        stub = _install(monkeypatch, StubProvider(_completion()))
+        created = _post(client_logged_in, story)
+        assert _json(created)["state"] == "ran"
+        open_ids = [item["id"] for item in _json(created)["findings"]]
+        calls_before = len(stub.calls)
+        audits_before = AICall.objects.count()
+        spent_before = AICall.objects.get().cost_cents
+        saved = _autosave(client_logged_in, story, blank)
+        assert saved.status_code == 200
+        chapter.refresh_from_db()
+        before = _snapshot(chapter)
+
+        response = _post(client_logged_in, story)
+        body = _json(response)
+        assert response.status_code == 200
+        assert body == {
+            "status": "empty",
+            "state": "empty",
+            "message": NOTHING_TO_REVIEW,
+        }
+        assert body["message"] != DID_NOT_RUN
+        assert body["message"] != NO_QUESTIONS
+        assert len(stub.calls) == calls_before
+        assert AICall.objects.count() == audits_before
+        assert AICall.objects.get().cost_cents == spent_before
+        assert set(
+            ReviewFinding.objects.filter(pk__in=open_ids).values_list(
+                "status", flat=True
+            )
+        ) == {ReviewFinding.Status.OPEN}
+        assert not ReviewFinding.objects.filter(
+            status=ReviewFinding.Status.SUPERSEDED
+        ).exists()
+        assert _snapshot(chapter) == before
+
+    def test_flag_off_on_a_blank_chapter_stays_the_refusal(
+        self, client_logged_in, story, chapter, monkeypatch
+    ):
+        chapter.content = "   "
+        chapter.save(update_fields=["content", "updated_at"])
+        chapter.refresh_from_db()
+        before = _snapshot(chapter)
+        stub = _install(monkeypatch, StubProvider(_completion()))
+        response = _post(client_logged_in, story)
+        body = _json(response)
+        assert response.status_code == 403
+        assert body["status"] == "rejected"
+        assert body["message"] == FLAG_OFF
+        assert "state" not in body
+        assert stub.calls == []
+        assert AICall.objects.count() == 0
+        assert _snapshot(chapter) == before
 
 
 @pytest.mark.django_db
@@ -766,9 +838,12 @@ class TestReviewDocs:
         doc = (ROOT / "docs" / "authors" / "ai-partner.md").read_text()
         assert (
             "A chapter review stores each question beside the chapter. "
-            "A rewrite is not applied. When nothing is proved, the review returns a gap."
+            "A rewrite is not applied. When a review runs and returns no findings, "
+            'it says "No questions this time. Your chapter hasn\'t changed."'
         ) in doc
         assert "The review did not run. Your chapter hasn't changed." in doc
+        assert "There's nothing to review yet." in doc
+        assert "`ran`" in doc and "`failed`" in doc and "`empty`" in doc
         example = (ROOT / ".env.example").read_text()
         assert "AI_ASSIST_ENABLED=False" in example
         assert "sk-" not in example
