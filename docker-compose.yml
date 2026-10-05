@@ -1,0 +1,25 @@
+name: worlds
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      AI_ASSIST_ENABLED: "false"
+      DATABASE_URL: sqlite:///db.sqlite3
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/')",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
