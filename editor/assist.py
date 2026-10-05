@@ -39,8 +39,8 @@ def get_provider():
     )
 
 
-def run_assist(*, user, chapter):
-    """Suggest from the stored chapter. Never assign chapter text."""
+def refusal(user):
+    """Return a rejection when this user must not call the provider."""
     if not settings.AI_ASSIST_ENABLED:
         return _rejected(FLAG_OFF, 403)
 
@@ -52,9 +52,16 @@ def run_assist(*, user, chapter):
         return _rejected(RATE_REJECTION, 429)
 
     cap = _spend_cap()
-    if cap is not None:
-        if _prices() is None or _spent(user) >= cap:
-            return _rejected(SPEND_REJECTION, 429)
+    if cap is not None and (_prices() is None or _spent(user) >= cap):
+        return _rejected(SPEND_REJECTION, 429)
+    return None
+
+
+def run_assist(*, user, chapter):
+    """Suggest from the stored chapter. Never assign chapter text."""
+    refused = refusal(user)
+    if refused is not None:
+        return refused
 
     system = system_instructions()
     user_message = chapter_prompt(chapter)
@@ -93,7 +100,7 @@ def run_assist(*, user, chapter):
     call.model = completion.model or call.model
     call.input_tokens = completion.input_tokens
     call.output_tokens = completion.output_tokens
-    call.cost_cents = _cost_cents(completion, cap)
+    call.cost_cents = _cost_cents(completion, _spend_cap())
     call.save(
         update_fields=[
             "outcome",

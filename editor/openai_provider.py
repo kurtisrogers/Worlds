@@ -16,6 +16,10 @@ class OpenAITimeout(OpenAIError):
     """The provider did not answer in time."""
 
 
+class OpenAIQuota(OpenAIError):
+    """The account is over a quota. The message never includes prompt or response text."""
+
+
 @dataclass
 class Completion:
     text: str
@@ -61,6 +65,8 @@ class OpenAIProvider:
         except TimeoutError as exc:
             raise OpenAITimeout("timed out") from exc
         except urllib.error.HTTPError as exc:
+            if getattr(exc, "code", None) == 429:
+                raise OpenAIQuota("quota") from exc
             raise OpenAIError("request failed") from exc
         except urllib.error.URLError as exc:
             if isinstance(exc.reason, TimeoutError):
