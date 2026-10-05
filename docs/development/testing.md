@@ -14,7 +14,7 @@ behave features/
 make behave
 ```
 
-`make behave` excludes `@pending-review-panel` and `@pending-review-api`. Those chapter-review scenarios fail closed until the review panel (#5) and the review API (#6) exist. The default run does not execute them. `make test-review-e2e` does, and they fail while that surface is missing.
+`make behave` excludes `@pending-review-panel` and `@pending-review-api`. The review API from #6 is on main, so the API scenarios run in the default job. Panel scenarios stay pending until #5. Two of them also need a start offset and a short quote on each finding; until those columns exist they fail closed and name the missing fields. `make test-review-e2e` runs the pending scenarios as well.
 
 ```bash
 make test-review-e2e
@@ -33,6 +33,6 @@ pre-commit run --all-files
 
 ## CI
 
-GitHub Actions runs pytest, behave, and pre-commit on every push. A separate review-e2e job runs `make test-review-e2e`. Pending scenarios fail there until #5 and #6 land. That job does not fail the default test job.
+GitHub Actions runs pytest, behave, and pre-commit on every push. A separate review-e2e job runs `make test-review-e2e`. Pending panel scenarios fail there until #5, and until each finding has a start offset and a short quote. That job does not fail the default test job.
 
 AI tests stub the OpenAI provider. Do not call the live OpenAI API from tests or CI.

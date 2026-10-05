@@ -52,8 +52,9 @@ test:
 	$(MAKE) behave
 	$(MAKE) pre-commit
 
-# Host-only. Includes @pending-review-panel and @pending-review-api.
-# Those scenarios fail closed until issues #5 and #6 land.
+# Host-only. Includes @pending-review-panel. Those scenarios fail closed
+# until the review panel (#5) exists. Offset and quote checks name the
+# missing ReviewFinding fields until those columns are on main.
 test-review-e2e: export DJANGO_SETTINGS_MODULE := config.settings.test
 test-review-e2e:
 	behave --tags="not @pending-excluded-from-this-run" features/chapter_review.feature

@@ -12,6 +12,7 @@ from django.urls import NoReverseMatch, reverse
 
 import editor.assist as assist
 from editor import urls as editor_urls
+from editor.models import AICall, ReviewFinding
 from editor.openai_provider import Completion, OpenAIError
 from stories.models import Chapter, Story
 
@@ -34,6 +35,17 @@ _VOID = {
 _ALL_CLEAR = ("no gaps", "all clear", "all-clear", "no issues", "looks good")
 _DID_NOT_RUN = ("did not run", "nothing proved")
 _GAP_NOTE = ("nothing was applied", "nothing proved", "did not run")
+_NOTHING_PROVED = "Nothing proved. The chapter text is unchanged."
+_REWRITE_GAP = "The model returned replacement prose. Nothing was applied."
+_OFFSET_FIELDS = {"start_offset", "offset"}
+_QUOTE_FIELDS = {"quote", "passage", "excerpt"}
+_INTEGER_TYPES = {
+    "IntegerField",
+    "PositiveIntegerField",
+    "PositiveSmallIntegerField",
+    "BigIntegerField",
+    "SmallIntegerField",
+}
 _WRITE_WORDS = ("insert", "replace", "accept", "apply", "rewrite", "generate")
 _ROUTE_WORDS = _WRITE_WORDS + ("confirm",)
 _ROUTE_SUFFIXES = (
@@ -260,9 +272,43 @@ def _require_surface(context):
     if gaps:
         lines = "\n".join(f"- {gap}" for gap in gaps)
         raise AssertionError(
-            "Fail closed: the chapter review surface is not on main, "
-            "so this scenario is not skipped and does not pass.\n" + lines
+            "Fail closed: this scenario is not skipped and does not pass.\n" + lines
         )
+
+
+def _location_field_names():
+    offset_name = None
+    quote_name = None
+    for field in ReviewFinding._meta.fields:
+        if field.name in _OFFSET_FIELDS and field.get_internal_type() in _INTEGER_TYPES:
+            offset_name = field.name
+        if field.name in _QUOTE_FIELDS and field.get_internal_type() in {
+            "TextField",
+            "CharField",
+        }:
+            quote_name = field.name
+    return offset_name, quote_name
+
+
+def _require_location_fields():
+    offset_name, quote_name = _location_field_names()
+    missing = []
+    if offset_name is None:
+        missing.append("a start offset (start_offset or offset)")
+    if quote_name is None:
+        missing.append(
+            "a short quote (quote, passage, or excerpt), separate from anchor"
+        )
+    if missing:
+        raise AssertionError(
+            "Fail closed: ReviewFinding on main does not have "
+            + " and ".join(missing)
+            + ". Jump places the caret at the finding's start offset, and a "
+            "changed passage is detected from the stored quote. Anchor is not "
+            "that quote, and there is no offset column. Those fields are not "
+            "on main yet, so this scenario is not skipped."
+        )
+    return offset_name, quote_name
 
 
 def _request_url(node):
@@ -702,3 +748,271 @@ def step_no_invented(context, marker):
     assert marker not in context.page
     parser = _parse(context.page)
     assert marker not in _manuscript(parser)
+
+
+def _payload(context):
+    if context.review_payload is None:
+        raise AssertionError("The review response was not JSON.")
+    return context.review_payload
+
+
+@when("I request a review of that chapter")
+def step_request_review(context):
+    url = _review_path(context)
+    if url is None:
+        raise AssertionError(
+            "Fail closed: Issue #6 (review API): editor:review is not registered, "
+            "so this scenario is not skipped and does not pass."
+        )
+    context.response = context.client.post(
+        url,
+        data=b"",
+        content_type="application/json",
+    )
+    try:
+        context.review_payload = json.loads(context.response.content.decode())
+    except json.JSONDecodeError:
+        context.review_payload = None
+
+
+@then('the review records one open finding "{question}"')
+def step_one_open_finding(context, question):
+    assert context.response.status_code == 200, context.response.status_code
+    payload = _payload(context)
+    assert payload["status"] == "ok"
+    findings = payload["findings"]
+    assert len(findings) == 1
+    row = findings[0]
+    assert row["question"] == question
+    assert row["status"] == "open"
+    assert row["anchor"] == context.anchor
+    stored = ReviewFinding.objects.get(pk=row["id"])
+    assert stored.status == ReviewFinding.Status.OPEN
+    assert stored.question == question
+    assert stored.anchor == context.anchor
+    assert stored.kind == ReviewFinding.Kind.QUESTION
+    assert stored.chapter_id == context.chapter.id
+    assert ReviewFinding.objects.count() == 1
+    context.finding_id = stored.id
+    context.finding_snapshot = {
+        "anchor": stored.anchor,
+        "question": stored.question,
+        "model": stored.model,
+        "kind": stored.kind,
+        "chapter_id": stored.chapter_id,
+        "asked_by_id": stored.asked_by_id,
+    }
+
+
+@when("I dismiss that finding through the review API")
+def step_dismiss_api(context):
+    url = reverse(
+        "editor:dismiss",
+        kwargs={
+            "slug": context.story.slug,
+            "number": context.chapter.number,
+            "finding_id": context.finding_id,
+        },
+    )
+    context.response = context.client.post(
+        url,
+        data=b"",
+        content_type="application/json",
+    )
+
+
+@then("that finding is dismissed without rewriting the chapter")
+def step_dismissed_only(context):
+    assert context.response.status_code == 200, context.response.status_code
+    body = json.loads(context.response.content.decode())
+    assert body["status"] == "dismissed"
+    assert body["id"] == context.finding_id
+    stored = ReviewFinding.objects.get(pk=context.finding_id)
+    assert stored.status == ReviewFinding.Status.DISMISSED
+    snap = context.finding_snapshot
+    assert stored.anchor == snap["anchor"]
+    assert stored.question == snap["question"]
+    assert stored.model == snap["model"]
+    assert stored.kind == snap["kind"]
+    assert stored.chapter_id == snap["chapter_id"]
+    assert stored.asked_by_id == snap["asked_by_id"]
+    context.chapter.refresh_from_db()
+    assert context.chapter.content == context.original_body
+
+
+@then("the review is recorded as not run and not as zero findings")
+def step_not_run(context):
+    payload = _payload(context)
+    raw = context.response.content.decode()
+    lowered = raw.casefold()
+    assert payload["status"] == "gap"
+    assert payload["message"] == _NOTHING_PROVED
+    assert payload.get("findings") != []
+    assert "findings" not in payload
+    assert '"findings": []' not in raw
+    assert '"findings":[]' not in raw
+    for phrase in _ALL_CLEAR:
+        assert phrase not in lowered
+    assert ReviewFinding.objects.count() == 0
+    call = AICall.objects.get()
+    assert call.outcome == AICall.Outcome.PROVIDER_ERROR
+    assert call.chapter_id == context.chapter.id
+    assert call.sent_to_provider is True
+
+
+@then('the rewrite "{rewrite}" is stored only as a gap note')
+def step_rewrite_gap(context, rewrite):
+    assert context.response.status_code == 200, context.response.status_code
+    payload = _payload(context)
+    raw = context.response.content.decode()
+    assert payload["status"] == "gap"
+    assert payload["message"] == _NOTHING_PROVED
+    assert "no gaps" not in raw.casefold()
+    assert rewrite not in raw
+    note = payload["gap_note"]
+    assert note["status"] == "open"
+    assert note["question"] == _REWRITE_GAP
+    assert rewrite not in note["question"]
+    assert rewrite not in (note.get("anchor") or "")
+    stored = ReviewFinding.objects.get(pk=note["id"])
+    assert stored.kind == ReviewFinding.Kind.GAP
+    assert stored.status == ReviewFinding.Status.OPEN
+    assert stored.question == _REWRITE_GAP
+    assert rewrite not in stored.question
+    assert rewrite not in stored.anchor
+    assert ReviewFinding.objects.filter(kind=ReviewFinding.Kind.QUESTION).count() == 0
+    context.chapter.refresh_from_db()
+    assert context.chapter.content == context.original_body
+
+
+@then('the review stores no invented finding "{marker}"')
+def step_no_invented_record(context, marker):
+    payload = _payload(context)
+    raw = context.response.content.decode()
+    assert marker not in raw
+    assert "no gaps" not in raw.casefold()
+    assert payload.get("status") != "ok"
+    assert not payload.get("findings")
+    for row in ReviewFinding.objects.all():
+        assert row.kind != ReviewFinding.Kind.QUESTION
+        assert marker not in row.question
+        assert marker not in row.anchor
+    context.chapter.refresh_from_db()
+    assert marker not in context.chapter.content
+
+
+@given("each finding stores a start offset and a short quote")
+def step_require_quote_and_offset(context):
+    context.offset_field, context.quote_field = _require_location_fields()
+
+
+@then("each finding row has only the question, Jump, and Dismiss")
+def step_row_shape(context):
+    parser, panel = _require_panel(context)
+    question_words = set(_words(context.question))
+    rows = []
+    for node in _walk(panel):
+        contained = list(_walk(node))
+        names = {
+            word
+            for control in _controls(contained, parser.by_id, "jump")
+            for word in _words(_accessible_name(control, parser.by_id))
+        }
+        if "jump" not in names:
+            continue
+        dismisses = _controls(contained, parser.by_id, "dismiss")
+        if dismisses:
+            rows.append(node)
+    if not rows:
+        raise AssertionError(
+            "Issue #5 (review panel): the panel has no finding row with "
+            "a keyboard Jump and Dismiss."
+        )
+    row = rows[-1]
+    controls = [
+        node
+        for node in _walk(row)
+        if _keyboard(node) and _accessible_name(node, parser.by_id)
+    ]
+    labels = [_accessible_name(control, parser.by_id) for control in controls]
+    for label in labels:
+        for banned in ("insert", "replace", "accept", "suggested"):
+            assert banned not in _words(label), label
+    visible_words = _words(row.visible())
+    allowed = question_words | {"jump", "dismiss"}
+    extra = [word for word in visible_words if word not in allowed]
+    assert extra == [], f"The finding row has extra wording: {extra}"
+
+
+@then("the caret is at that finding's start offset")
+def step_caret_at_offset(context):
+    offset_name, _quote_name = _require_location_fields()
+    parser, panel = _require_panel(context)
+    stored = ReviewFinding.objects.get(question=context.question)
+    offset = getattr(stored, offset_name)
+    container = _finding(panel, parser, context.question)
+    controls = _controls(list(_walk(container)), parser.by_id, "jump")
+    if not controls:
+        raise AssertionError(
+            "Issue #5 (review panel): the finding has no keyboard Jump control."
+        )
+    declared = controls[0].attrs.get("data-offset") or controls[0].attrs.get(
+        "data-start"
+    )
+    assert declared == str(offset), (
+        "Jump does not put the caret at the finding's start offset "
+        f"{offset!r}; the control declared {declared!r}."
+    )
+    context.chapter.refresh_from_db()
+    assert context.chapter.content == context.original_body
+
+
+@then("the manuscript was scrolled into view")
+def step_scrolled(context):
+    parser, panel = _require_panel(context)
+    container = _finding(panel, parser, context.question)
+    controls = _controls(list(_walk(container)), parser.by_id, "jump")
+    if not controls:
+        raise AssertionError(
+            "Issue #5 (review panel): the finding has no keyboard Jump control."
+        )
+    control = controls[0]
+    href = control.attrs.get("href") or ""
+    scroll = control.attrs.get("data-scroll") or ""
+    assert (
+        "manuscript" in href or scroll == "manuscript"
+    ), "Jump does not scroll the manuscript into view."
+
+
+@then("focus stays in the chapter")
+def step_focus_stays(context):
+    assert "manuscript" in context.jump_target
+    assert "chapter-title" not in context.jump_target
+
+
+@then("the finding row says the passage has changed")
+def step_passage_changed(context):
+    _parser, panel = _require_panel(context)
+    lowered = panel.visible().casefold()
+    assert (
+        "passage has changed" in lowered or "the passage has changed" in lowered
+    ), "The finding row does not say the passage has changed."
+
+
+@then("Jump does not move the caret to the wrong place")
+def step_jump_does_not_move(context):
+    parser, panel = _require_panel(context)
+    controls = _controls(list(_walk(panel)), parser.by_id, "jump")
+    for control in controls:
+        disabled = control.attrs.get("disabled") is not None
+        aria_disabled = control.attrs.get("aria-disabled") == "true"
+        if disabled or aria_disabled:
+            continue
+        if (
+            control.attrs.get("data-offset")
+            or control.attrs.get("data-start")
+            or _focus_target(control)
+        ):
+            raise AssertionError(
+                "Jump still moves the caret after the quoted passage is gone."
+            )

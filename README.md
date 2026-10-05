@@ -55,7 +55,7 @@ pytest
 # BDD tests. Pending chapter-review scenarios are excluded here.
 behave features/
 
-# Chapter review, including scenarios that fail until issues #5 and #6 land.
+# Chapter review, including panel scenarios that fail until issue #5.
 make test-review-e2e
 
 # Pre-commit

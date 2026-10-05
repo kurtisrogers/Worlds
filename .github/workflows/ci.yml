@@ -47,8 +47,8 @@ jobs:
         run: |
           pre-commit run --all-files
 
-  # Pending review scenarios fail closed until #5 and #6 land.
-  # This job is not the merge gate; the test job above stays green.
+  # Pending panel scenarios fail closed until #5, and until a start
+  # offset and short quote exist on ReviewFinding. Not the merge gate.
   review-e2e:
     runs-on: ubuntu-latest
     continue-on-error: true
