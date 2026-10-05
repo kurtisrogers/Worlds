@@ -47,6 +47,9 @@ def before_scenario(context, scenario):
 
 
 def after_scenario(context, scenario):
+    closer = getattr(context, "close_browser", None)
+    if closer is not None:
+        closer()
     module = getattr(context, "_provider_module", None)
     original = getattr(context, "_original_get_provider", None)
     if module is not None and original is not None:

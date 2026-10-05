@@ -7,14 +7,23 @@ from html.parser import HTMLParser
 from behave import given, then, when
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.staticfiles.handlers import StaticFilesHandler
+from django.core.exceptions import FieldDoesNotExist
 from django.test import Client
+from django.test.testcases import LiveServerThread
 from django.urls import NoReverseMatch, reverse
+from playwright.sync_api import sync_playwright
 
 import editor.assist as assist
 from editor import urls as editor_urls
 from editor.models import AICall, ReviewFinding
 from editor.openai_provider import Completion, OpenAIError
 from stories.models import Chapter, Story
+
+try:
+    from editor import anchors as review_anchors
+except ImportError:
+    review_anchors = None
 
 _WORD = re.compile(r"[a-z0-9]+")
 _VOID = {
@@ -37,8 +46,6 @@ _DID_NOT_RUN = ("did not run", "nothing proved")
 _GAP_NOTE = ("nothing was applied", "nothing proved", "did not run")
 _NOTHING_PROVED = "Nothing proved. The chapter text is unchanged."
 _REWRITE_GAP = "The model returned replacement prose. Nothing was applied."
-_OFFSET_FIELDS = {"start_offset", "offset"}
-_QUOTE_FIELDS = {"quote", "passage", "excerpt"}
 _INTEGER_TYPES = {
     "IntegerField",
     "PositiveIntegerField",
@@ -57,6 +64,44 @@ _ROUTE_SUFFIXES = (
     "rewrite",
     "confirm",
 )
+_ANCHOR_NOT_ON_MAIN = (
+    "Fail closed: PR #28 is not on main yet. Each finding returns "
+    "question, status, quote (120 characters max), start_offset, and "
+    "anchor_status, which is one of ok, changed, or none. "
+    "start_offset counts UTF-16 code units, the same way the browser "
+    "caret does, and it is sent only when anchor_status is ok. "
+    "This scenario is not skipped."
+)
+_ANCHOR_STATUSES = {"ok", "changed", "none"}
+_CHANGED_COPY = "This passage has changed"
+_NONE_COPY = "Can't find this passage in the chapter"
+_FOLD_LINES = 80
+_CARET_SCRIPT = """
+() => {
+  const el = document.getElementById("manuscript");
+  if (!el) {
+    return null;
+  }
+  const style = getComputedStyle(el);
+  const lineHeight = parseFloat(style.lineHeight);
+  const before = el.value.slice(0, el.selectionStart);
+  const line = before.split("\\n").length - 1;
+  const caretTop = line * lineHeight;
+  const viewTop = el.scrollTop;
+  const viewBottom = viewTop + el.clientHeight;
+  const active = document.activeElement;
+  return {
+    selectionStart: el.selectionStart,
+    selectionEnd: el.selectionEnd,
+    activeId: active ? active.id : "",
+    value: el.value,
+    lineHeight,
+    inView: Number.isFinite(lineHeight)
+      && caretTop >= viewTop - 2
+      && caretTop + lineHeight <= viewBottom + 2,
+  };
+}
+"""
 
 
 class _El:
@@ -276,39 +321,206 @@ def _require_surface(context):
         )
 
 
-def _location_field_names():
-    offset_name = None
-    quote_name = None
-    for field in ReviewFinding._meta.fields:
-        if field.name in _OFFSET_FIELDS and field.get_internal_type() in _INTEGER_TYPES:
-            offset_name = field.name
-        if field.name in _QUOTE_FIELDS and field.get_internal_type() in {
-            "TextField",
-            "CharField",
-        }:
-            quote_name = field.name
-    return offset_name, quote_name
+def _named_field(name):
+    try:
+        return ReviewFinding._meta.get_field(name)
+    except FieldDoesNotExist:
+        return None
 
 
-def _require_location_fields():
-    offset_name, quote_name = _location_field_names()
-    missing = []
-    if offset_name is None:
-        missing.append("a start offset (start_offset or offset)")
-    if quote_name is None:
-        missing.append(
-            "a short quote (quote, passage, or excerpt), separate from anchor"
-        )
-    if missing:
+def _anchor_contract_on_main():
+    quote = _named_field("quote")
+    offset = _named_field("start_offset")
+    if (
+        quote is None
+        or quote.get_internal_type() != "CharField"
+        or quote.max_length != 120
+    ):
+        return False
+    if offset is None or offset.get_internal_type() not in _INTEGER_TYPES:
+        return False
+    if review_anchors is None or not hasattr(review_anchors, "present_finding"):
+        return False
+    try:
+        reverse("editor:findings", kwargs={"slug": "probe", "number": 1})
+    except NoReverseMatch:
+        return False
+    row = ReviewFinding(
+        id=1,
+        question="Does it stay?",
+        status=ReviewFinding.Status.OPEN,
+        quote="The river",
+        start_offset=0,
+    )
+    presented = review_anchors.present_finding(row, "The river stays.")
+    if not isinstance(presented, dict):
+        return False
+    return {"question", "status", "quote", "anchor_status"} <= set(presented)
+
+
+def _require_anchor_contract():
+    if not _anchor_contract_on_main():
+        raise AssertionError(_ANCHOR_NOT_ON_MAIN)
+
+
+def _utf16_len(text):
+    """UTF-16 code units, the index a browser caret uses."""
+    return sum(2 if ord(char) > 0xFFFF else 1 for char in text)
+
+
+def _quote_offset(chapter, quote):
+    index = chapter.find(quote)
+    if index < 0:
         raise AssertionError(
-            "Fail closed: ReviewFinding on main does not have "
-            + " and ".join(missing)
-            + ". Jump places the caret at the finding's start offset, and a "
-            "changed passage is detected from the stored quote. Anchor is not "
-            "that quote, and there is no offset column. Those fields are not "
-            "on main yet, so this scenario is not skipped."
+            "The quote is not in the chapter, so there is no browser offset."
         )
-    return offset_name, quote_name
+    return _utf16_len(chapter[:index]), index
+
+
+def _any_named(nodes, by_id, word):
+    """Controls with this name, including disabled and hidden ones."""
+    found = []
+    for node in nodes:
+        role = node.attrs.get("role")
+        if node.tag not in {"button", "a", "input"} and role not in {"button", "link"}:
+            continue
+        if word in _words(_accessible_name(node, by_id)):
+            found.append(node)
+    return found
+
+
+def _read_finding(context):
+    url = reverse(
+        "editor:findings",
+        kwargs={"slug": context.story.slug, "number": context.chapter.number},
+    )
+    response = context.client.get(url)
+    assert response.status_code == 200, response.status_code
+    payload = json.loads(response.content.decode())
+    rows = [
+        row
+        for row in payload.get("findings", [])
+        if row.get("question") == context.question
+    ]
+    assert len(rows) == 1, payload
+    return rows[0]
+
+
+def _close_browser(context):
+    browser = getattr(context, "_browser", None)
+    playwright = getattr(context, "_playwright", None)
+    server = getattr(context, "_live_server", None)
+    context._browser = None
+    context._playwright = None
+    context._live_server = None
+    context._page = None
+    if browser is not None:
+        browser.close()
+    if playwright is not None:
+        playwright.stop()
+    if server is not None:
+        server.terminate()
+
+
+def _launch_browser(playwright):
+    args = ["--no-sandbox", "--disable-dev-shm-usage"]
+    errors = []
+    attempts = (
+        {"channel": "chrome", "headless": True, "args": args},
+        {"headless": True, "args": args},
+    )
+    for kwargs in attempts:
+        try:
+            return playwright.chromium.launch(**kwargs)
+        except Exception as exc:
+            errors.append(str(exc))
+    raise AssertionError(
+        "The caret must be read in a browser. Chrome did not start:\n"
+        + "\n".join(errors)
+    )
+
+
+def _live_server(context):
+    server = getattr(context, "_live_server", None)
+    if server is not None:
+        return f"http://{server.host}:{server.port}"
+    thread = LiveServerThread("localhost", StaticFilesHandler, port=0)
+    thread.daemon = True
+    thread.start()
+    thread.is_ready.wait(timeout=15)
+    if thread.error:
+        raise thread.error
+    context._live_server = thread
+    context.close_browser = lambda: _close_browser(context)
+    return f"http://{thread.host}:{thread.port}"
+
+
+def _browser_page(context):
+    if getattr(context, "_page", None) is not None:
+        return context._page
+    live = _live_server(context)
+    playwright = sync_playwright().start()
+    browser = _launch_browser(playwright)
+    context._playwright = playwright
+    context._browser = browser
+    context.close_browser = lambda: _close_browser(context)
+    page = browser.new_page(viewport={"width": 1280, "height": 720})
+    page.set_default_timeout(8000)
+    cookie = context.client.cookies.get(settings.SESSION_COOKIE_NAME)
+    if cookie is None:
+        raise AssertionError(
+            "The writer is not signed in, so the browser cannot open the chapter."
+        )
+    page.context.add_cookies(
+        [
+            {
+                "name": settings.SESSION_COOKIE_NAME,
+                "value": cookie.value,
+                "url": live,
+            }
+        ]
+    )
+    url = live + reverse(
+        "editor:edit",
+        kwargs={"slug": context.story.slug, "number": context.chapter.number},
+    )
+    page.goto(url)
+    context._page = page
+    return page
+
+
+def _press_jump(page):
+    panel = page.locator("#review-panel")
+    if panel.count() == 0:
+        panel = page.get_by_role("region", name=re.compile(r"review", re.I))
+    if panel.count() == 0:
+        panel = page.get_by_role("complementary", name=re.compile(r"review", re.I))
+    if panel.count() == 0:
+        raise AssertionError(
+            "Issue #5 (review panel): the chapter page has no review panel "
+            "after the review, so Jump cannot move the caret."
+        )
+    name = re.compile(r"\bjump\b", re.I)
+    button = panel.get_by_role("button", name=name)
+    link = panel.get_by_role("link", name=name)
+    target = button if button.count() else link
+    if target.count() == 0:
+        raise AssertionError(
+            "Issue #5 (review panel): the finding has no keyboard Jump control."
+        )
+    target.first.focus()
+    page.keyboard.press("Enter")
+
+
+def _measure_caret(page):
+    measured = page.evaluate(_CARET_SCRIPT.strip())
+    if not measured:
+        raise AssertionError(
+            "The chapter page has no manuscript to place the caret in."
+        )
+    if not measured["lineHeight"]:
+        raise AssertionError("The browser did not report a caret line height.")
+    return measured
 
 
 def _request_url(node):
@@ -901,9 +1113,27 @@ def step_no_invented_record(context, marker):
     assert marker not in context.chapter.content
 
 
-@given("each finding stores a start offset and a short quote")
-def step_require_quote_and_offset(context):
-    context.offset_field, context.quote_field = _require_location_fields()
+@given("each finding returns quote, start_offset, and anchor_status")
+def step_require_anchor_contract(context):
+    _require_anchor_contract()
+
+
+@given('that chapter places "{passage}" below the fold')
+def step_below_fold(context, passage):
+    # A textarea drops one leading newline. Start with a word so the
+    # browser caret index matches the stored chapter.
+    _set_body(context, ("line\n" * _FOLD_LINES) + passage)
+
+
+@given(
+    'the OpenAI client is stubbed to return the question "{question}" '
+    'quoted as "{quote}"'
+)
+def step_stub_quoted(context, question, quote):
+    context.question = question
+    context.quote = quote
+    payload = json.dumps({"findings": [{"quote": quote, "question": question}]})
+    _install_stub(context, _completion(payload))
 
 
 @then("each finding row has only the question, Jump, and Dismiss")
@@ -944,75 +1174,125 @@ def step_row_shape(context):
     assert extra == [], f"The finding row has extra wording: {extra}"
 
 
-@then("the caret is at that finding's start offset")
-def step_caret_at_offset(context):
-    offset_name, _quote_name = _require_location_fields()
-    parser, panel = _require_panel(context)
-    stored = ReviewFinding.objects.get(question=context.question)
-    offset = getattr(stored, offset_name)
-    container = _finding(panel, parser, context.question)
-    controls = _controls(list(_walk(container)), parser.by_id, "jump")
-    if not controls:
-        raise AssertionError(
-            "Issue #5 (review panel): the finding has no keyboard Jump control."
-        )
-    declared = controls[0].attrs.get("data-offset") or controls[0].attrs.get(
-        "data-start"
-    )
-    assert declared == str(offset), (
-        "Jump does not put the caret at the finding's start offset "
-        f"{offset!r}; the control declared {declared!r}."
-    )
+@when("I jump to that finding from the keyboard in the browser")
+def step_browser_jump(context):
+    _require_anchor_contract()
+    page = _browser_page(context)
+    _press_jump(page)
+    context.browser_caret = _measure_caret(page)
+
+
+@then('that finding\'s anchor_status is "{status}"')
+def step_anchor_status(context, status):
+    _require_anchor_contract()
+    if status not in _ANCHOR_STATUSES:
+        raise AssertionError(f"anchor_status {status!r} is not ok, changed, or none.")
+    _open_editor(context)
+    row = _read_finding(context)
+    actual = row.get("anchor_status")
+    assert actual == status, f"anchor_status is {actual!r}, expected {status!r}."
+    assert row.get("question") == context.question
+    assert row.get("status") == "open"
+    quote = row.get("quote")
+    if quote is not None:
+        assert len(quote) <= 120, quote
+    if status == "ok":
+        assert isinstance(row.get("start_offset"), int), row
+    elif status == "changed":
+        assert (
+            "start_offset" not in row
+        ), "start_offset is sent only when anchor_status is ok."
+    elif status == "none":
+        assert (
+            "start_offset" not in row
+        ), "start_offset is sent only when anchor_status is ok."
+    else:
+        raise AssertionError(f"anchor_status {status!r} is not ok, changed, or none.")
+    context.finding_payload = row
+
+
+@then("the browser caret is at that finding's start offset")
+def step_browser_caret(context):
     context.chapter.refresh_from_db()
-    assert context.chapter.content == context.original_body
+    expected, _python_index = _quote_offset(context.chapter.content, context.quote)
+    measured = context.browser_caret
+    actual = measured["selectionStart"]
+    assert actual == expected, (
+        f"The browser caret is at {actual}, and the UTF-16 offset of the "
+        f"quote is {expected}."
+    )
+    assert context.finding_payload["start_offset"] == expected, (
+        "The browser caret is at the quote, and the finding's start_offset "
+        f"is {context.finding_payload.get('start_offset')!r}."
+    )
+    assert measured["value"] == context.chapter.content
 
 
-@then("the manuscript was scrolled into view")
+@then("the browser caret counts the emoji before the quote as two characters")
+def step_emoji_caret(context):
+    context.chapter.refresh_from_db()
+    chapter = context.chapter.content
+    expected, python_index = _quote_offset(chapter, context.quote)
+    prefix = chapter[:python_index]
+    extra = sum(1 for char in prefix if ord(char) > 0xFFFF)
+    assert extra >= 1, "The chapter has no emoji before the quote."
+    assert expected == python_index + extra
+    actual = context.browser_caret["selectionStart"]
+    assert actual == expected, (
+        f"The browser caret is at {actual}. The emoji before the quote "
+        f"counts as two, so the caret belongs at {expected}, not the "
+        f"Python index {python_index}."
+    )
+
+
+@then("the manuscript caret is scrolled into view")
 def step_scrolled(context):
-    parser, panel = _require_panel(context)
-    container = _finding(panel, parser, context.question)
-    controls = _controls(list(_walk(container)), parser.by_id, "jump")
-    if not controls:
-        raise AssertionError(
-            "Issue #5 (review panel): the finding has no keyboard Jump control."
-        )
-    control = controls[0]
-    href = control.attrs.get("href") or ""
-    scroll = control.attrs.get("data-scroll") or ""
-    assert (
-        "manuscript" in href or scroll == "manuscript"
-    ), "Jump does not scroll the manuscript into view."
+    assert context.browser_caret["inView"], (
+        "Jump does not scroll the caret into view. "
+        f"The browser caret is at {context.browser_caret['selectionStart']}."
+    )
 
 
 @then("focus stays in the chapter")
 def step_focus_stays(context):
-    assert "manuscript" in context.jump_target
-    assert "chapter-title" not in context.jump_target
-
-
-@then("the finding row says the passage has changed")
-def step_passage_changed(context):
-    _parser, panel = _require_panel(context)
-    lowered = panel.visible().casefold()
+    active = context.browser_caret["activeId"]
     assert (
-        "passage has changed" in lowered or "the passage has changed" in lowered
-    ), "The finding row does not say the passage has changed."
+        active == "manuscript"
+    ), f"Focus is on {active!r} after Jump. It belongs in the chapter."
 
 
-@then("Jump does not move the caret to the wrong place")
-def step_jump_does_not_move(context):
+@then("the chapter text is unchanged")
+def step_text_unchanged(context):
+    assert context.browser_caret["value"] == context.original_body
+    _assert_body(context, context.original_body)
+
+
+@then('the finding row shows "{sentence}"')
+def step_row_shows(context, sentence):
+    _parser, panel = _require_panel(context)
+    container = _finding(panel, _parser, context.question)
+    visible = container.visible()
+    assert sentence in visible, f"The finding row does not show {sentence!r}."
+    if sentence == _CHANGED_COPY:
+        assert _NONE_COPY not in visible
+    elif sentence == _NONE_COPY:
+        assert _CHANGED_COPY not in visible
+
+
+@then("the finding row keeps the question and Dismiss and has no Jump control")
+def step_no_jump(context):
     parser, panel = _require_panel(context)
-    controls = _controls(list(_walk(panel)), parser.by_id, "jump")
-    for control in controls:
-        disabled = control.attrs.get("disabled") is not None
-        aria_disabled = control.attrs.get("aria-disabled") == "true"
-        if disabled or aria_disabled:
-            continue
-        if (
-            control.attrs.get("data-offset")
-            or control.attrs.get("data-start")
-            or _focus_target(control)
-        ):
-            raise AssertionError(
-                "Jump still moves the caret after the quoted passage is gone."
-            )
+    container = _finding(panel, parser, context.question)
+    nodes = list(_walk(container))
+    assert context.question in container.visible()
+    dismisses = _controls(nodes, parser.by_id, "dismiss")
+    if not dismisses:
+        raise AssertionError(
+            "Issue #5 (review panel): the finding row has no keyboard Dismiss control."
+        )
+    jumps = _any_named(nodes, parser.by_id, "jump")
+    if jumps:
+        raise AssertionError(
+            "The finding row has a Jump control. "
+            "A disabled Jump does not count as absent."
+        )
