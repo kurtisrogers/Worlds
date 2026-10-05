@@ -20,6 +20,7 @@ from playwright.sync_api import sync_playwright
 
 import editor.assist as assist
 import editor.review as chapter_review
+import editor.views as editor_views
 from editor import urls as editor_urls
 from editor.models import AICall, ReviewFinding
 from editor.openai_provider import Completion, OpenAIError
@@ -457,6 +458,10 @@ def _read_finding(context):
 
 
 def _close_browser(context):
+    restore = getattr(context, "_restore_autosave", None)
+    if restore is not None:
+        context._restore_autosave = None
+        restore()
     holder = getattr(context, "holder", None)
     if holder is not None:
         holder.release.set()
@@ -821,39 +826,47 @@ def _press_review(page):
     page.keyboard.press("Enter")
 
 
-def _install_save_route(context, page):
-    if getattr(context, "_save_route", False):
+def _autosave_pattern():
+    for pattern in editor_urls.urlpatterns:
+        if getattr(pattern, "name", None) == "autosave":
+            return pattern
+    raise AssertionError("The chapter page has no autosave route to stub.")
+
+
+def _stub_autosave(context, mode):
+    """Answer the pending save inside Django. mode is 'hold' or 'fail'."""
+    if getattr(context, "_restore_autosave", None) is not None:
         return
-    context._save_route = True
-    context.traffic = []
-    context.held_routes = []
+    pattern = _autosave_pattern()
+    original = pattern.callback
+    context.autosave_entered = threading.Event()
+    context.autosave_release = threading.Event()
 
-    def handle(route):
-        request = route.request
-        path = _request_path(request.url)
-        if request.method == "POST" and path.endswith("/autosave"):
-            context.traffic.append("autosave")
-            if getattr(context, "save_will_fail", False):
-                route.fulfill(
-                    status=500,
-                    body="Failed",
-                    content_type="text/plain; charset=utf-8",
-                )
-                return
-            if getattr(context, "save_held", False):
-                context.held_routes.append(route)
-                return
-        if request.method == "POST" and path.endswith("/review"):
-            context.traffic.append("review")
-        route.continue_()
+    def wrapped(request, slug, number):
+        context.autosave_entered.set()
+        if mode == "fail":
+            return editor_views._plain(editor_views.FAILED, 500)
+        if not context.autosave_release.wait(timeout=15):
+            raise AssertionError("The held save was not released.")
+        return original(request, slug, number)
 
-    page.route("**/*", handle)
+    # Django 6 records func.__module__ while resolving the request.
+    # A nested function can leave that unset and the save 500s first.
+    wrapped.__module__ = original.__module__ or "editor.views"
+    wrapped.__name__ = getattr(original, "__name__", None) or "autosave"
+    pattern.callback = wrapped
+
+    def restore():
+        pattern.callback = original
+        context.autosave_release.set()
+
+    context._restore_autosave = restore
+    context.close_browser = lambda: _close_browser(context)
 
 
 def _type_prefix(context, prefix):
     _prepare_browser(context)
     page = _browser_page(context)
-    _install_save_route(context, page)
     page.locator("#manuscript").focus()
     page.keyboard.press("Home")
     page.keyboard.type(prefix)
@@ -1622,11 +1635,9 @@ def step_browser_review(context):
     if getattr(context, "save_will_fail", False) or getattr(
         context, "save_held", False
     ):
-        try:
-            with page.expect_request(_is_autosave, timeout=8000):
-                _press_review(page)
-        except PlaywrightTimeout:
-            raise AssertionError(_SAVE_ORDER) from None
+        _press_review(page)
+        if not context.autosave_entered.wait(timeout=8):
+            raise AssertionError(_SAVE_ORDER)
         return
     _press_review(page)
     holder = getattr(context, "holder", None)
@@ -1656,6 +1667,7 @@ def step_release_held(context):
 def step_type_held(context, prefix):
     context.save_held = True
     context.save_will_fail = False
+    _stub_autosave(context, "hold")
     _type_prefix(context, prefix)
 
 
@@ -1663,6 +1675,7 @@ def step_type_held(context, prefix):
 def step_type_fail(context, prefix):
     context.save_held = False
     context.save_will_fail = True
+    _stub_autosave(context, "fail")
     _type_prefix(context, prefix)
 
 
@@ -1718,19 +1731,19 @@ def step_shown_once(context, question):
 
 @then("the save finishes before the review request")
 def step_save_finishes_first(context):
-    if context.traffic[:1] != ["autosave"] or not context.held_routes:
+    page = context._page
+    page.evaluate("() => true")
+    if context.review_posts:
         raise AssertionError(_SAVE_ORDER)
     try:
-        with context._page.expect_request(
+        with page.expect_request(
             lambda request: request.method == "POST"
             and _request_path(request.url).endswith("/review"),
             timeout=8000,
         ):
-            context.held_routes.pop(0).continue_()
+            context.autosave_release.set()
     except PlaywrightTimeout:
         raise AssertionError(_SAVE_ORDER) from None
-    if context.traffic[0] != "autosave" or "review" not in context.traffic:
-        raise AssertionError(_SAVE_ORDER)
 
 
 @then("the review offset matches the on-screen text")
