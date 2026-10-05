@@ -1,5 +1,7 @@
 """Behave step definitions for Worlds platform."""
 
+import json
+
 from behave import given, then, when
 from django.contrib.auth.models import User
 from django.test import Client
@@ -181,3 +183,101 @@ def step_following_author(context):
         reverse("library:author", kwargs={"username": context.followed_author.username})
     )
     assert b"Following" in response.content
+
+
+def _reader_client(username):
+    user, _created = User.objects.get_or_create(username=username)
+    user.set_password("readerpass123")
+    user.save(update_fields=["password"])
+    client = Client()
+    client.login(username=username, password="readerpass123")
+    return client
+
+
+def _story_by_title(title):
+    return Story.objects.get(title=title)
+
+
+@given('chapter {number:d} of "{title}" is released')
+def step_chapter_released(context, number, title):
+    story = _story_by_title(title)
+    Chapter.objects.update_or_create(
+        story=story,
+        number=number,
+        defaults={
+            "title": f"Chapter {number}",
+            "content": "Released chapter text.",
+            "is_published": True,
+        },
+    )
+
+
+@given('chapter {number:d} of "{title}" is a draft')
+def step_chapter_draft(context, number, title):
+    story = _story_by_title(title)
+    Chapter.objects.update_or_create(
+        story=story,
+        number=number,
+        defaults={
+            "title": f"Chapter {number}",
+            "content": "Draft chapter text.",
+            "is_published": False,
+        },
+    )
+
+
+@when('a reader "{username}" records a read of chapter {number:d} of "{title}"')
+def step_reader_records_read(context, username, number, title):
+    story = _story_by_title(title)
+    _reader_client(username).post(
+        reverse(
+            "stories:record_read",
+            kwargs={"slug": story.slug, "number": number},
+        )
+    )
+
+
+@when('a reader "{username}" likes chapter {number:d} of "{title}"')
+def step_reader_likes_chapter(context, username, number, title):
+    story = _story_by_title(title)
+    _reader_client(username).post(
+        reverse(
+            "stories:chapter_like",
+            kwargs={"slug": story.slug, "number": number},
+        )
+    )
+
+
+@when('I request the chapter counts for "{title}"')
+def step_request_counts(context, title):
+    story = _story_by_title(title)
+    context.response = get_client(context).get(
+        reverse("stories:chapter_counts", kwargs={"slug": story.slug})
+    )
+    context.counts = json.loads(context.response.content.decode())
+
+
+@then(
+    "chapter {number:d} counts are {reads:d} reads, {likes:d} likes, "
+    "and {favourites:d} favourites"
+)
+def step_chapter_counts(context, number, reads, likes, favourites):
+    matches = [row for row in context.counts["chapters"] if row["number"] == number]
+    assert matches == [
+        {
+            "number": number,
+            "reads": reads,
+            "likes": likes,
+            "favourites": favourites,
+        }
+    ]
+
+
+@then("the counts do not include chapter {number:d}")
+def step_counts_omit_chapter(context, number):
+    assert all(row["number"] != number for row in context.counts["chapters"])
+
+
+@then('the counts do not name "{username}"')
+def step_counts_do_not_name(context, username):
+    assert username not in context.response.content.decode()

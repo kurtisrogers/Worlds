@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from stories import views
+from stories import counts, views
 
 app_name = "stories"
 
@@ -19,6 +19,22 @@ urlpatterns = [
         "<slug:slug>/chapters/<int:number>/",
         views.chapter_read,
         name="chapter",
+    ),
+    path("<slug:slug>/counts/", counts.chapter_counts, name="chapter_counts"),
+    path(
+        "<slug:slug>/chapters/<int:number>/reads/",
+        counts.record_read,
+        name="record_read",
+    ),
+    path(
+        "<slug:slug>/chapters/<int:number>/likes/",
+        counts.chapter_like,
+        name="chapter_like",
+    ),
+    path(
+        "<slug:slug>/chapters/<int:number>/favourites/",
+        counts.chapter_favourite,
+        name="chapter_favourite",
     ),
     path(
         "<slug:slug>/chapters/<int:number>/edit/",
