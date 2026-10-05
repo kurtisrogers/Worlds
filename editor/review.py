@@ -16,6 +16,7 @@ from editor.policy import review_instructions, review_prompt
 logger = logging.getLogger(__name__)
 
 GAP = "Nothing proved. The chapter text is unchanged."
+DID_NOT_RUN = "The review did not run. Your chapter hasn't changed."
 REWRITE_NOTE = "The model returned replacement prose. Nothing was applied."
 _MAX_QUESTION = 400
 _MAX_NOVEL = 80
@@ -50,7 +51,12 @@ class ReviewResponse:
 
 
 def run_review(*, user, chapter):
-    """Store questions beside the chapter. The chapter row is not saved."""
+    """Store questions beside the chapter. The chapter row is not saved.
+
+    A review that stores questions marks this chapter's earlier open
+    findings superseded. Dismissed findings stay dismissed. A provider
+    failure stores nothing and supersedes nothing.
+    """
     refused = assist.refusal(user)
     if refused is not None:
         return ReviewResponse(refused.status_code, refused.payload)
@@ -118,7 +124,7 @@ def _finish(call, outcome, status_code):
     call.outcome = outcome
     call.save(update_fields=["outcome"])
     _log(call)
-    return ReviewResponse(status_code, {"status": "gap", "message": GAP})
+    return ReviewResponse(status_code, {"status": "gap", "message": DID_NOT_RUN})
 
 
 def _save_call(call):
@@ -144,8 +150,16 @@ def _log(call):
     )
 
 
+def _supersede_open(chapter):
+    """Mark this chapter's open findings superseded. Dismissed stay put."""
+    chapter.review_findings.filter(status=ReviewFinding.Status.OPEN).update(
+        status=ReviewFinding.Status.SUPERSEDED
+    )
+
+
 def _store_questions(*, chapter, user, model, pairs):
     with transaction.atomic():
+        _supersede_open(chapter)
         return [
             ReviewFinding.objects.create(
                 chapter=chapter,

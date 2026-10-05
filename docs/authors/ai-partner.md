@@ -24,9 +24,9 @@ If OpenAI returns an error or times out, the chapter text is unchanged and the w
 
 A chapter review stores each question beside the chapter. A rewrite is not applied. When nothing is proved, the review returns a gap.
 
-The review uses the same flag and the same OpenAI path. The model is asked for questions and locations in the writer's text, not replacement prose. Each finding is its own row: the chapter, an anchor in the writer's text, a question, a status of open or dismissed, the model id, and who asked. Dismiss does not edit the chapter. The audit row records who asked, when, which chapter, and which model. It does not store a prompt body.
+The review uses the same flag and the same OpenAI path. The model is asked for questions and locations in the writer's text, not replacement prose. Each finding is its own row: the chapter, an anchor in the writer's text, a question, a status of open, dismissed, or superseded, the model id, and who asked. Dismiss does not edit the chapter. A later review that stores questions marks that chapter's earlier open findings superseded and leaves dismissed findings dismissed. The review response and the findings list return only the current open findings. The audit row records who asked, when, which chapter, and which model. It does not store a prompt body.
 
-If the provider errors, times out, or the account is over a quota, the editor still saves. The review returns a gap, which means nothing was proved. It does not report an all-clear. The chapter page still has no review control.
+If the provider errors, times out, or the account is over a quota, the editor still saves. The review says "The review did not run. Your chapter hasn't changed." Earlier findings stay as they were. It does not report an all-clear. The chapter page still has no review control.
 
 ## Prompts
 

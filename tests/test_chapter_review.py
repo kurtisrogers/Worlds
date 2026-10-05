@@ -36,6 +36,7 @@ QUESTION_TWO = "What does the morning hold after this?"
 ANCHOR_ONE = "The river kept its course"
 ANCHOR_TWO = "the morning stayed"
 GAP = "Nothing proved. The chapter text is unchanged."
+DID_NOT_RUN = "The review did not run. Your chapter hasn't changed."
 REWRITE_NOTE = "The model returned replacement prose. Nothing was applied."
 AUTHORSHIP = "This is assistance, not authorship."
 PROMPT_REJECTION = "The client cannot set the system prompt."
@@ -77,6 +78,10 @@ def _edit_url(story, number=1):
 
 def _autosave_url(story, number=1):
     return reverse("editor:autosave", kwargs={"slug": story.slug, "number": number})
+
+
+def _findings_url(story, number=1):
+    return reverse("editor:findings", kwargs={"slug": story.slug, "number": number})
 
 
 def _completion(**overrides):
@@ -512,7 +517,8 @@ class TestReviewGaps:
         response = _post(client_logged_in, story)
         body = _assert_not_all_clear(response)
         assert body["status"] == "gap"
-        assert body["message"] == GAP
+        assert body["message"] == DID_NOT_RUN
+        assert "Nothing proved" not in response.content.decode()
         assert "upstream" not in response.content.decode()
         assert "slow" not in response.content.decode()
         assert PARAGRAPH not in response.content.decode()
@@ -591,6 +597,89 @@ class TestDismiss:
             ReviewFinding.objects.get(pk=finding_id).status == ReviewFinding.Status.OPEN
         )
         assert _snapshot(chapter) == before
+
+
+@pytest.mark.django_db
+class TestSupersede:
+    def test_second_run_supersedes_open_findings_and_leaves_dismissed(
+        self, client_logged_in, story, chapter, settings, monkeypatch
+    ):
+        _enable(settings)
+        _install(monkeypatch, StubProvider(_completion()))
+        sibling = _post(client_logged_in, story, number=2)
+        assert sibling.status_code == 200
+        sibling_ids = {item["id"] for item in _json(sibling)["findings"]}
+        first = _json(_post(client_logged_in, story))
+        first_ids = [item["id"] for item in first["findings"]]
+        dismissed_id, open_id = first_ids
+        dismissed = client_logged_in.post(_dismiss_url(story, dismissed_id))
+        assert dismissed.status_code == 200
+        before = _snapshot(chapter)
+        sibling_chapter = story.chapters.get(number=2)
+        sibling_before = _snapshot(sibling_chapter)
+
+        second_response = _post(client_logged_in, story)
+        second = _json(second_response)
+        second_ids = [item["id"] for item in second["findings"]]
+        assert second["status"] == "ok"
+        assert len(second_ids) == 2
+        assert set(second_ids).isdisjoint(first_ids)
+        assert [item["question"] for item in second["findings"]] == [
+            QUESTION_ONE,
+            QUESTION_TWO,
+        ]
+        assert all(item["status"] == "open" for item in second["findings"])
+
+        listed = _json(client_logged_in.get(_findings_url(story)))
+        assert [item["id"] for item in listed["findings"]] == second_ids
+        assert dismissed_id not in {item["id"] for item in listed["findings"]}
+        assert open_id not in {item["id"] for item in listed["findings"]}
+
+        assert (
+            ReviewFinding.objects.get(pk=dismissed_id).status
+            == ReviewFinding.Status.DISMISSED
+        )
+        superseded = ReviewFinding.objects.get(pk=open_id)
+        assert superseded.status == ReviewFinding.Status.SUPERSEDED
+        assert superseded.question in {QUESTION_ONE, QUESTION_TWO}
+        assert set(
+            ReviewFinding.objects.filter(pk__in=sibling_ids).values_list(
+                "status", flat=True
+            )
+        ) == {ReviewFinding.Status.OPEN}
+        assert _snapshot(chapter) == before
+        assert _snapshot(sibling_chapter) == sibling_before
+
+    def test_provider_failure_supersedes_nothing(
+        self, client_logged_in, story, chapter, settings, monkeypatch
+    ):
+        _enable(settings)
+        _install(monkeypatch, StubProvider(_completion()))
+        first = _json(_post(client_logged_in, story))
+        first_ids = [item["id"] for item in first["findings"]]
+        before = _snapshot(chapter)
+
+        _install(monkeypatch, StubProvider(OpenAIError("upstream")))
+        response = _post(client_logged_in, story)
+        body = _assert_not_all_clear(response)
+        assert body["status"] == "gap"
+        assert body["message"] == DID_NOT_RUN
+        assert "findings" not in body
+        assert _snapshot(chapter) == before
+        assert set(
+            ReviewFinding.objects.filter(pk__in=first_ids).values_list(
+                "status", flat=True
+            )
+        ) == {ReviewFinding.Status.OPEN}
+        assert not ReviewFinding.objects.filter(
+            status=ReviewFinding.Status.SUPERSEDED
+        ).exists()
+        listed = _json(client_logged_in.get(_findings_url(story)))
+        assert [item["id"] for item in listed["findings"]] == first_ids
+        saved = _autosave(client_logged_in, story, PARAGRAPH + " Still mine.")
+        assert saved.status_code == 200
+        chapter.refresh_from_db()
+        assert chapter.content == PARAGRAPH + " Still mine."
 
 
 @pytest.mark.django_db
@@ -679,6 +768,7 @@ class TestReviewDocs:
             "A chapter review stores each question beside the chapter. "
             "A rewrite is not applied. When nothing is proved, the review returns a gap."
         ) in doc
+        assert "The review did not run. Your chapter hasn't changed." in doc
         example = (ROOT / ".env.example").read_text()
         assert "AI_ASSIST_ENABLED=False" in example
         assert "sk-" not in example

@@ -54,6 +54,7 @@ class ReviewFinding(models.Model):
     class Status(models.TextChoices):
         OPEN = "open", "Open"
         DISMISSED = "dismissed", "Dismissed"
+        SUPERSEDED = "superseded", "Superseded"
 
     class Kind(models.TextChoices):
         QUESTION = "question", "Question"

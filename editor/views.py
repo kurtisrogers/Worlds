@@ -147,10 +147,10 @@ def dismiss_finding(request, slug, number, finding_id):
 @login_required
 @require_GET
 def findings(request, slug, number):
-    """Read findings against the current chapter. Does not write it."""
+    """Read current open findings. Does not write the chapter or the rows."""
     story = get_object_or_404(Story, slug=slug, author=request.user)
     chapter = get_object_or_404(Chapter, story=story, number=number)
-    rows = chapter.review_findings.all()
+    rows = chapter.review_findings.filter(status=ReviewFinding.Status.OPEN)
     return _assist_json(
         {
             "findings": [present_finding(row, chapter.content) for row in rows],
