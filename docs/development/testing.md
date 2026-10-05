@@ -30,4 +30,4 @@ AI tests stub the OpenAI provider. Do not call the live OpenAI API from tests or
 
 ### OpenAI key fixture
 
-`scripts/no_openai_key.py --self-test` writes an OpenAI-style key into a temporary file and checks that the scan exits non-zero. It also checks that an empty `OPENAI_API_KEY`, the Stripe `sk_test_` shape, and `sk-test-not-a-real-key` do not fail. The temporary file is the fixture. It is not committed: a key in tracked content fails pre-commit and fails `openai-key-gate`. The report names the file and line and does not print the key. `tests/test_no_openai_key.py` runs the same gate.
+`scripts/no_openai_key.py --self-test` writes an OpenAI-style key into a temporary file and checks that the scan exits non-zero. It also checks that an empty `OPENAI_API_KEY`, a Stripe test key, and the short test double used by the AI tests do not fail. The temporary file is the fixture. It is not committed: a key in tracked content fails pre-commit and fails `openai-key-gate`. The report names the file and line and does not print the key. `tests/test_no_openai_key.py` runs the same gate.
