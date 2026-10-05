@@ -3,16 +3,26 @@
 import json
 import logging
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
-from editor.assist import PROMPT_REJECTION, run_assist
+from editor.anchors import present_finding
+from editor.assist import AUTHORSHIP, PROMPT_REJECTION, run_assist
 from editor.models import ReviewFinding
-from editor.review import run_review
+from editor.review import (
+    DID_NOT_RUN,
+    NO_QUESTIONS,
+    NOTHING_TO_REVIEW,
+    PASSAGE_CHANGED,
+    PASSAGE_MISSING,
+    listed_findings,
+    run_review,
+)
 from stories.models import Chapter, ContentSource, Story
 
 logger = logging.getLogger(__name__)
@@ -45,10 +55,32 @@ def _fields(request, chapter):
     return title, content
 
 
+def _panel_finding(row, chapter):
+    """Shape one open finding for the panel. Does not write the row."""
+    item = present_finding(row, chapter.content)
+    anchor_status = item["anchor_status"]
+    offset = item["start_offset"]
+    item["can_jump"] = anchor_status == "ok" and offset is not None
+    if anchor_status == "changed":
+        item["anchor_note"] = PASSAGE_CHANGED
+    elif anchor_status == "none":
+        item["anchor_note"] = PASSAGE_MISSING
+    else:
+        item["anchor_note"] = ""
+    item.pop("quote", None)
+    return item
+
+
 @login_required
 def editor(request, slug, number):
     story = get_object_or_404(Story, slug=slug, author=request.user)
     chapter = get_object_or_404(Chapter, story=story, number=number)
+    ai_assist_enabled = bool(settings.AI_ASSIST_ENABLED)
+    open_findings = []
+    if ai_assist_enabled:
+        open_findings = [
+            _panel_finding(row, chapter) for row in listed_findings(chapter)
+        ]
     return render(
         request,
         "editor/edit.html",
@@ -59,6 +91,14 @@ def editor(request, slug, number):
             "saving_label": SAVING,
             "saved_label": SAVED,
             "failed_label": FAILED,
+            "ai_assist_enabled": ai_assist_enabled,
+            "open_findings": open_findings,
+            "empty_chapter_message": NOTHING_TO_REVIEW,
+            "did_not_run_message": DID_NOT_RUN,
+            "no_questions_message": NO_QUESTIONS,
+            "passage_changed_message": PASSAGE_CHANGED,
+            "passage_missing_message": PASSAGE_MISSING,
+            "authorship_message": AUTHORSHIP,
         },
     )
 
@@ -109,6 +149,17 @@ def assist(request, slug, number):
     return _assist_json(result.payload, result.status_code)
 
 
+_REVIEW_STATES = frozenset({"ran", "failed", "empty", "off"})
+
+
+def _with_review_state(payload):
+    """The panel branches on state. A review payload without one failed."""
+    body = dict(payload)
+    if body.get("state") not in _REVIEW_STATES:
+        body["state"] = "failed"
+    return body
+
+
 @login_required
 @require_POST
 def review(request, slug, number):
@@ -118,16 +169,20 @@ def review(request, slug, number):
     payload = _client_payload(request)
     if payload is None:
         return _assist_json(
-            {"status": "rejected", "message": "The chapter text is unchanged."},
+            {
+                "state": "failed",
+                "status": "rejected",
+                "message": "The chapter text is unchanged.",
+            },
             400,
         )
     if payload:
         return _assist_json(
-            {"status": "rejected", "message": PROMPT_REJECTION},
+            {"state": "failed", "status": "rejected", "message": PROMPT_REJECTION},
             400,
         )
     result = run_review(user=request.user, chapter=chapter)
-    return _assist_json(result.payload, result.status_code)
+    return _assist_json(_with_review_state(result.payload), result.status_code)
 
 
 @login_required
@@ -141,6 +196,21 @@ def dismiss_finding(request, slug, number, finding_id):
         finding.status = ReviewFinding.Status.DISMISSED
         finding.save(update_fields=["status"])
     return _assist_json({"status": "dismissed", "id": finding.id}, 200)
+
+
+@login_required
+@require_GET
+def findings(request, slug, number):
+    """Read current open findings. Does not write the chapter or the rows."""
+    story = get_object_or_404(Story, slug=slug, author=request.user)
+    chapter = get_object_or_404(Chapter, story=story, number=number)
+    rows = listed_findings(chapter)
+    return _assist_json(
+        {
+            "findings": [present_finding(row, chapter.content) for row in rows],
+        },
+        200,
+    )
 
 
 def _client_payload(request):

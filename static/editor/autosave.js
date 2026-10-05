@@ -128,6 +128,7 @@ function onAutosaveFinish(evt) {
     if (leavingTo) {
       cancelLeave();
     }
+    notifySettled(false);
     return;
   }
   if (isDirty(doc)) {
@@ -140,8 +141,11 @@ function onAutosaveFinish(evt) {
     var dest = leavingTo;
     leavingTo = null;
     onLeaveStay = null;
+    onSettled = null;
     window.location.assign(dest);
+    return;
   }
+  notifySettled(true);
 }
 
 var savedSnapshot = null;
@@ -151,6 +155,26 @@ var inFlight = false;
 var queuedSave = false;
 var leavingTo = null;
 var onLeaveStay = null;
+var onSettled = null;
+
+function notifySettled(ok) {
+  if (!onSettled) {
+    return;
+  }
+  var done = onSettled;
+  onSettled = null;
+  done(ok);
+}
+
+function finishPendingSave(doc, done) {
+  onSettled = done;
+  if (saveTimer || isDirty(doc)) {
+    flushSave(doc);
+  }
+  if (!inFlight && !isDirty(doc) && !saveTimer) {
+    notifySettled(true);
+  }
+}
 
 function currentFields(doc) {
   return {
@@ -302,6 +326,7 @@ var worldsEditor = {
   markSaving: markSaving,
   waitForField: waitForField,
   decideLeave: decideLeave,
+  finishPendingSave: finishPendingSave,
 };
 
 if (typeof window !== "undefined") {

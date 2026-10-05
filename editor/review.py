@@ -8,20 +8,23 @@ from django.conf import settings
 from django.db import transaction
 
 from editor import assist
+from editor.anchors import place_quote, present_finding
 from editor.models import AICall, ReviewFinding
 from editor.openai_provider import OpenAIError, OpenAIQuota, OpenAITimeout
 from editor.policy import review_instructions, review_prompt
 
 logger = logging.getLogger(__name__)
 
-GAP = "Nothing proved. The chapter text is unchanged."
+NO_QUESTIONS = "No questions this time. Your chapter hasn't changed."
+DID_NOT_RUN = "The review did not run. Your chapter hasn't changed."
+NOTHING_TO_REVIEW = "There's nothing to review yet."
+PASSAGE_CHANGED = "This passage has changed"
+PASSAGE_MISSING = "Can't find this passage in the chapter"
 REWRITE_NOTE = "The model returned replacement prose. Nothing was applied."
-_MAX_ANCHOR = 280
 _MAX_QUESTION = 400
 _MAX_NOVEL = 80
 _LONG_QUESTION = 80
 _QUOTE = 12
-_GAP_ANCHOR = 80
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 _REWRITE_KEYS = frozenset(
     {
@@ -51,10 +54,31 @@ class ReviewResponse:
 
 
 def run_review(*, user, chapter):
-    """Store questions beside the chapter. The chapter row is not saved."""
+    """Store questions beside the chapter. The chapter row is not saved.
+
+    A review that stores questions, and a quiet review that returns no
+    questions, mark this chapter's earlier open findings superseded.
+    A quiet review stores no finding row. Dismissed findings stay
+    dismissed. A provider failure stores nothing and supersedes nothing.
+    An empty chapter does not call the provider, does not write an
+    audit row, and does not supersede findings.
+    """
     refused = assist.refusal(user)
     if refused is not None:
-        return ReviewResponse(refused.status_code, refused.payload)
+        payload = dict(refused.payload)
+        if refused.status_code == 403 and payload.get("message") == assist.FLAG_OFF:
+            payload["state"] = "off"
+        return ReviewResponse(refused.status_code, payload)
+
+    if _chapter_is_empty(chapter):
+        return ReviewResponse(
+            200,
+            {
+                "status": "empty",
+                "state": "empty",
+                "message": NOTHING_TO_REVIEW,
+            },
+        )
 
     call = AICall.objects.create(
         user=user,
@@ -96,21 +120,35 @@ def run_review(*, user, chapter):
             200,
             {
                 "status": "ok",
-                "message": assist.AUTHORSHIP,
-                "findings": [_public_finding(row) for row in rows],
+                "state": "ran",
+                "message": "",
+                "findings": [present_finding(row, chapter.content) for row in rows],
             },
         )
 
     call.outcome = AICall.Outcome.EMPTY
     _save_call(call)
     _log(call)
-    gap = _store_gap(chapter=chapter, user=user, model=model, question=note)
+    if note == REWRITE_NOTE:
+        gap = _store_gap(chapter=chapter, user=user, model=model, question=note)
+        return ReviewResponse(
+            200,
+            {
+                "status": "gap",
+                "state": "ran",
+                "message": NO_QUESTIONS,
+                "gap_note": present_finding(gap, chapter.content),
+            },
+        )
+
+    _supersede_open(chapter)
     return ReviewResponse(
         200,
         {
-            "status": "gap",
-            "message": GAP,
-            "gap_note": _public_finding(gap),
+            "status": "ok",
+            "state": "ran",
+            "message": NO_QUESTIONS,
+            "findings": [],
         },
     )
 
@@ -119,7 +157,10 @@ def _finish(call, outcome, status_code):
     call.outcome = outcome
     call.save(update_fields=["outcome"])
     _log(call)
-    return ReviewResponse(status_code, {"status": "gap", "message": GAP})
+    return ReviewResponse(
+        status_code,
+        {"status": "gap", "state": "failed", "message": DID_NOT_RUN},
+    )
 
 
 def _save_call(call):
@@ -145,19 +186,43 @@ def _log(call):
     )
 
 
+_STATUS_MESSAGES = frozenset({NO_QUESTIONS, DID_NOT_RUN, NOTHING_TO_REVIEW})
+
+
+def listed_findings(chapter):
+    """Open findings for the panel. A status line is not a finding."""
+    return chapter.review_findings.filter(status=ReviewFinding.Status.OPEN).exclude(
+        question__in=_STATUS_MESSAGES
+    )
+
+
+def _chapter_is_empty(chapter):
+    return not (chapter.content or "").strip()
+
+
+def _supersede_open(chapter):
+    """Mark this chapter's open findings superseded. Dismissed stay put."""
+    chapter.review_findings.filter(status=ReviewFinding.Status.OPEN).update(
+        status=ReviewFinding.Status.SUPERSEDED
+    )
+
+
 def _store_questions(*, chapter, user, model, pairs):
     with transaction.atomic():
+        _supersede_open(chapter)
         return [
             ReviewFinding.objects.create(
                 chapter=chapter,
                 asked_by=user,
-                anchor=anchor,
+                anchor=quote or "",
+                quote=quote,
+                start_offset=offset,
                 question=question,
                 status=ReviewFinding.Status.OPEN,
                 model=model,
                 kind=ReviewFinding.Kind.QUESTION,
             )
-            for anchor, question in pairs
+            for quote, offset, question in pairs
         ]
 
 
@@ -165,7 +230,9 @@ def _store_gap(*, chapter, user, model, question):
     return ReviewFinding.objects.create(
         chapter=chapter,
         asked_by=user,
-        anchor=_gap_anchor(chapter.content),
+        anchor="",
+        quote=None,
+        start_offset=None,
         question=question,
         status=ReviewFinding.Status.OPEN,
         model=model,
@@ -173,30 +240,11 @@ def _store_gap(*, chapter, user, model, question):
     )
 
 
-def _public_finding(row):
-    return {
-        "id": row.id,
-        "anchor": row.anchor,
-        "question": row.question,
-        "status": row.status,
-        "model": row.model,
-    }
-
-
-def _gap_anchor(content):
-    if not content:
-        return ""
-    anchor = content[:_GAP_ANCHOR]
-    if anchor not in content:
-        return ""
-    return anchor
-
-
 def _interpret(text, chapter_content):
     """Return question pairs, or a gap note that does not contain model prose."""
     stripped = text.strip()
     if not stripped:
-        return [], GAP
+        return [], NO_QUESTIONS
     payload = _load_json(stripped)
     if payload is None or _contains_rewrite_key(payload):
         return [], REWRITE_NOTE
@@ -206,7 +254,7 @@ def _interpret(text, chapter_content):
     if not isinstance(items, list):
         return [], REWRITE_NOTE
     if not items:
-        return [], GAP
+        return [], NO_QUESTIONS
     pairs = []
     for item in items:
         parsed = _question(item, chapter_content)
@@ -239,27 +287,25 @@ def _contains_rewrite_key(value):
 
 
 def _question(item, chapter_content):
-    if not isinstance(item, dict) or set(item) != {"anchor", "question"}:
+    if not isinstance(item, dict) or set(item) != {"quote", "question"}:
         return None
-    anchor = item["anchor"]
+    quote = item["quote"]
     question = item["question"]
-    if not isinstance(anchor, str) or not isinstance(question, str):
+    if not isinstance(quote, str) or not isinstance(question, str):
         return None
-    anchor = anchor.strip()
     question = question.strip()
     if (
-        not anchor
-        or anchor not in chapter_content
-        or len(anchor) > _MAX_ANCHOR
-        or "?" not in question
+        "?" not in question
         or "." in question
         or "\n" in question
+        or not question
         or len(question) > _MAX_QUESTION
         or _novel_span(question, chapter_content) > _MAX_NOVEL
         or _rewrites_the_chapter(question, chapter_content)
     ):
         return None
-    return anchor, question
+    stored, offset = place_quote(chapter_content, quote.strip())
+    return stored, offset, question
 
 
 def _rewrites_the_chapter(question, chapter_content):

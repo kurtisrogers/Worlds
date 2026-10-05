@@ -12,7 +12,7 @@ One rule: the writer keeps the words. OpenAI is the only provider. The editor st
 - No “generate chapter” as a primary action.
 - No second model provider until this OpenAI path is in use and these rules hold.
 
-When an assist succeeds, the response carries the sentence "This is assistance, not authorship." The chapter page has no control that calls a model, and it has no review control.
+When an assist succeeds, the response carries the sentence "This is assistance, not authorship." With the flag off, the chapter page has no review control and makes no model call. With the flag on, Review opens a panel beside the chapter on a wide screen and under the chapter on a phone. The panel does not cover the manuscript and does not write it.
 
 ## The editor
 
@@ -22,11 +22,15 @@ If OpenAI returns an error or times out, the chapter text is unchanged and the w
 
 ## Chapter review
 
-A chapter review stores each question beside the chapter. A rewrite is not applied. When nothing is proved, the review returns a gap.
+A chapter review stores each question beside the chapter. A rewrite is not applied. When a review runs and returns no findings, it says "No questions this time. Your chapter hasn't changed."
 
-The review uses the same flag and the same OpenAI path. The model is asked for questions and locations in the writer's text, not replacement prose. Each finding is its own row: the chapter, an anchor in the writer's text, a question, a status of open or dismissed, the model id, and who asked. Dismiss does not edit the chapter. The audit row records who asked, when, which chapter, and which model. It does not store a prompt body.
+The review uses the same flag and the same OpenAI path. The model is asked for questions and locations in the writer's text, not replacement prose. Each finding is its own row: the chapter, an anchor in the writer's text, a question, a status of open, dismissed, or superseded, the model id, and who asked. Dismiss does not edit the chapter. A later review that stores questions marks that chapter's earlier open findings superseded and leaves dismissed findings dismissed. The review response and the findings list return only the current open findings. The audit row records who asked, when, which chapter, and which model. It does not store a prompt body.
 
-If the provider errors, times out, or the account is over a quota, the editor still saves. The review returns a gap, which means nothing was proved. It does not report an all-clear. The chapter page still has no review control.
+If the provider errors, times out, or the account is over a quota, the editor still saves. The review says "The review did not run. Your chapter hasn't changed." Earlier findings stay as they were. It does not report an all-clear. With the flag off, the chapter page has no review control. With the flag on, the panel follows the review state. Failed shows "The review did not run. Your chapter hasn't changed." A review that runs and returns no questions shows "No questions this time. Your chapter hasn't changed." An empty chapter is not sent to the model, and the panel says "There's nothing to review yet." The panel does not say there are no gaps. Each row is the question, and Dismiss. Jump is there only when the anchor is ok, and it puts the caret at `start_offset` without writing the chapter. When the quote is gone, the row says "This passage has changed" and has no Jump. When there is no anchor, or the quote is ambiguous, the row says "Can't find this passage in the chapter" and has no Jump.
+
+An empty or whitespace-only chapter is not sent to the provider. The review says "There's nothing to review yet." Earlier findings stay as they were, and no audit row is written.
+
+The review response carries `state`. `ran` means the provider answered, with findings or with none. A quiet run stores no finding row, returns an empty findings list, and supersedes earlier open findings. `failed` means the provider did not complete the review. `empty` means the chapter had no text to review. With the flag off, the response is the existing refusal with `state` `off`: `status` is `rejected` and the message is "AI assist is off."
 
 ## Prompts
 
