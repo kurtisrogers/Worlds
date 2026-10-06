@@ -1400,11 +1400,38 @@ def step_require_anchor_contract(context):
     _require_anchor_contract()
 
 
-@given('that chapter places "{passage}" below the fold')
-def step_below_fold(context, passage):
+def _below_fold(passage):
     # A textarea drops one leading newline. Start with a word so the
     # browser caret index matches the stored chapter.
-    _set_body(context, ("line\n" * _FOLD_LINES) + passage)
+    return ("line\n" * _FOLD_LINES) + passage
+
+
+@given('that chapter places "{passage}" below the fold')
+def step_below_fold(context, passage):
+    _set_body(context, _below_fold(passage))
+
+
+@when('I move "{passage}" below the fold and autosave')
+def step_move_below_fold(context, passage):
+    context.chapter.refresh_from_db()
+    stored_offset = None
+    if _named_field("start_offset") is not None:
+        row = (
+            ReviewFinding.objects.filter(
+                chapter=context.chapter, question=context.question
+            )
+            .order_by("id")
+            .first()
+        )
+        if row is not None:
+            stored_offset = row.start_offset
+    step_autosave(context, _below_fold(passage))
+    context.chapter.refresh_from_db()
+    moved, _index = _quote_offset(context.chapter.content, context.quote)
+    if stored_offset is not None and moved == stored_offset:
+        raise AssertionError(
+            "The quote is still at its stored offset, so this is not a move."
+        )
 
 
 @given(

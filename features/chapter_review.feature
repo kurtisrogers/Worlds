@@ -186,9 +186,6 @@ Feature: One-chapter review asks questions and never writes the manuscript
     And the finding row keeps the question and Dismiss and has no Jump control
     And the stored chapter body is byte-for-byte "The river kept its course through the quiet valley."
 
-  # UX is confirming this. The quote is still at its stored offset and also
-  # appears later, so the status is ok and Jump uses that stored offset.
-  # Flip the expected result if UX disagrees.
   @pending-review-panel
   Scenario: A quote that is still at its stored offset stays ok when it also appears elsewhere
     Given each finding returns quote, start_offset, and anchor_status
@@ -213,6 +210,20 @@ Feature: One-chapter review asks questions and never writes the manuscript
     And the finding row shows "Can't find this passage in the chapter"
     And the finding row keeps the question and Dismiss and has no Jump control
     And the stored chapter body is exactly "Morning came. The river kept its course. The river kept its course."
+
+  @pending-review-panel
+  Scenario: A quote that moved and appears once is ok at its new offset
+    Given each finding returns quote, start_offset, and anchor_status
+    And the AI assist flag is on
+    And the OpenAI client is stubbed to return the question "Does the river stay in the valley?" quoted as "The river kept its course"
+    When I open that chapter in the editor
+    And I run the review from the keyboard
+    And I move "The river kept its course through the quiet valley." below the fold and autosave
+    Then that finding's anchor_status is "ok"
+    When I jump to that finding from the keyboard in the browser
+    Then the browser caret is at that finding's start offset
+    And the manuscript caret is scrolled into view
+    And focus stays in the chapter
 
   @pending-review-panel
   Scenario: Running Review again replaces the loaded rows when the response arrives
