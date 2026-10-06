@@ -2,11 +2,11 @@
 # up, down, and logs are the local app container.
 .DEFAULT_GOAL := help
 
-.PHONY: behave docs down help install logs migrate pre-commit pytest test up
+.PHONY: behave docs down help install logs migrate pre-commit pytest test test-review-e2e up
 
 behave: export DJANGO_SETTINGS_MODULE := config.settings.test
 behave:
-	behave features/
+	behave --no-skipped --tags="not @pending-review-panel and not @pending-review-api" features/
 
 docs:
 	mkdocs build --strict
@@ -25,6 +25,7 @@ help:
 	@echo 'pre-commit  Run pre-commit on all files'
 	@echo 'pytest      Run pytest'
 	@echo 'test        Run migrations, pytest, behave, and pre-commit'
+	@echo 'test-review-e2e  Run chapter-review features, including pending scenarios'
 	@echo 'up          Build the app image, migrate, and serve it'
 
 install:
@@ -50,6 +51,13 @@ test:
 	$(MAKE) pytest
 	$(MAKE) behave
 	$(MAKE) pre-commit
+
+# Host-only. Includes pending panel and API scenarios. Panel scenarios
+# fail closed until the review panel (#5) exists. State and anchor
+# scenarios fail closed until PR #28 is on main.
+test-review-e2e: export DJANGO_SETTINGS_MODULE := config.settings.test
+test-review-e2e:
+	behave --tags="not @pending-excluded-from-this-run" features/chapter_review.feature
 
 up:
 	touch db.sqlite3
